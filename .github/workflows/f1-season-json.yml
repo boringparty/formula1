@@ -32,9 +32,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: scripts/requirements.txt
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r scripts/requirements.txt
       - name: Fetch and consolidate F1 data
         run: python scripts/scrape_f1_season.py
       - name: Commit consolidated JSON
