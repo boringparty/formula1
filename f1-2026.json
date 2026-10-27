@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "season": 2026,
-  "generated_at_utc": "2026-10-27T06:40:36.788386+00:00",
+  "generated_at_utc": "2026-10-27T06:46:31.943854+00:00",
   "race_window": {
     "calendar_event": "F1: Grand Prix (United States Grand Prix)",
     "scheduled_start_utc": "2026-10-25T20:00:00+00:00",
@@ -30498,12 +30498,6 @@
         "status_code": 200,
         "source": "Formula1.com"
       }
-    },
-    "fastf1": {
-      "ok": false,
-      "source": "FastF1",
-      "error": "DataNotLoadedError: The data you are trying to access has not been loaded yet. See `Session.load`",
-      "note": "Optional source; Jolpica and Formula1.com data are still saved."
     }
   }
 }
