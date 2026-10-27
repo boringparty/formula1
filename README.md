@@ -38,21 +38,21 @@ Jolpica lap and pit-stop data can be sizeable. `f1-2026.json` stores all records
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python scrape_f1_season.py --help
-python scrape_f1_season.py --season 2026 --force
+python scripts/scrape_f1_season.py --help
+python scripts/scrape_f1_season.py --season 2026 --force
 ```
 
 Useful commands:
 
 ```bash
 # Latest completed Grand Prix
-python scrape_f1_season.py --force
+python scripts/scrape_f1_season.py --force
 
 # Explicitly select a completed race by name
-python scrape_f1_season.py --race "United States Grand Prix"
+python scripts/scrape_f1_season.py --race "United States Grand Prix"
 
 # Quick smoke test without the per-round lap and pit-stop requests
-python scrape_f1_season.py --force --skip-round-details --output /tmp/f1-smoke.json
+python scripts/scrape_f1_season.py --force --skip-round-details --output /tmp/f1-smoke.json
 ```
 
 `--race` only selects a race that has already started at least 90 minutes ago. The default full-season output is `f1-2026.json` and the latest-race output is `current.json`. Use `--output` and `--current-output` to change either path. `--season` changes the year. The install only needs Requests and Beautiful Soup. The calendar is parsed with Python's standard library, so `icalendar` is not needed.
