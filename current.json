@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "season": 2026,
-  "generated_at_utc": "2026-10-27T06:53:13.311793+00:00",
+  "generated_at_utc": "2026-10-27T07:00:08.365473+00:00",
   "race_window": {
     "calendar_event": "F1: Grand Prix (United States Grand Prix)",
     "scheduled_start_utc": "2026-10-25T20:00:00+00:00",
@@ -10,6 +10,7 @@
     "forced": true
   },
   "current_race": null,
+  "fastest_laps": [],
   "sources": {
     "formula1_com": {
       "race_id": 1297,
