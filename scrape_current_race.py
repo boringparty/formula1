@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Schedule-aware Formula1.com scraper: scrape only during the post-race window."""
+"""Scrape the latest completed 2026 Grand Prix from Formula1.com."""
 
 from __future__ import annotations
 
@@ -25,9 +25,9 @@ CALENDAR_URL = os.getenv(
 )
 OUTPUT_FILE = Path(os.getenv("F1_OUTPUT_FILE", "current-race.json"))
 STATE_FILE = Path(os.getenv("F1_STATE_FILE", ".f1-scraper-state.json"))
-# Race is expected to finish around 2h after scheduled start. Try for 4h after that.
+# A Grand Prix is treated as completed two hours after its scheduled start.
+# The scraper always targets the latest such event, not the next event in the calendar.
 EXPECTED_RACE_DURATION = timedelta(hours=2)
-RETRY_WINDOW = timedelta(hours=4)
 REQUEST_TIMEOUT = 25
 REQUEST_DELAY_SECONDS = 1.0
 BASE_URL = "https://www.formula1.com/en/results/2026/races"
@@ -138,20 +138,14 @@ def resolve_race(summary: str) -> tuple[int, str] | None:
 
 
 def select_event(events: list[dict], now: datetime) -> tuple[dict | None, str]:
-    """
-    Select only the event whose post-race retry window contains now.
-    Outside that window, do not request Formula1.com.
-    """
-    for event in events:
-        start = event["start_utc"]
-        window_start = start + EXPECTED_RACE_DURATION
-        window_end = window_start + RETRY_WINDOW
-        if window_start <= now <= window_end:
-            return event, "post_race_window"
-    upcoming = [event for event in events if event["start_utc"] > now]
-    if upcoming:
-        return min(upcoming, key=lambda item: item["start_utc"]), "waiting"
-    return None, "no_upcoming_event"
+    """Return the most recent Grand Prix whose expected finish time has passed."""
+    completed_candidates = [
+        event for event in events
+        if event["start_utc"] + EXPECTED_RACE_DURATION <= now
+    ]
+    if not completed_candidates:
+        return None, "no_completed_event"
+    return max(completed_candidates, key=lambda item: item["start_utc"]), "latest_completed"
 
 
 def load_state() -> dict:
@@ -247,16 +241,12 @@ def main() -> int:
 
     event, mode = select_event(events, now)
     if not event:
-        LOG.info("No upcoming race event found. No Formula1.com requests made.")
+        LOG.info("No Grand Prix has passed its expected finish time yet; nothing to scrape.")
         return 0
 
     race_start = event["start_utc"]
     race_id_slug = resolve_race(event["summary"])
-    LOG.info("Calendar's nearest event: %s (%s)", event["summary"], race_start.isoformat())
-
-    if mode == "waiting":
-        LOG.info("Outside post-race window. No Formula1.com requests made.")
-        return 0
+    LOG.info("Latest completed Grand Prix candidate: %s (scheduled start %s)", event["summary"], race_start.isoformat())
 
     if not race_id_slug:
         LOG.error("Inside race window but no Formula1.com URL mapping for %r", event["summary"])
@@ -265,9 +255,14 @@ def main() -> int:
     race_id, slug = race_id_slug
     race_key = f"{race_id}:{slug}:{race_start.date().isoformat()}"
     state = load_state()
-    if state.get("completed", {}).get(race_key):
-        LOG.info("Race %s already has confirmed results; no scraping needed.", race_key)
-        return 0
+    if state.get("completed", {}).get(race_key) and OUTPUT_FILE.exists():
+        try:
+            existing = json.loads(OUTPUT_FILE.read_text(encoding="utf-8"))
+            if existing.get("race_id") == race_id and existing.get("race_url", "").endswith(f"/{race_id}/{slug}"):
+                LOG.info("Latest completed race %s is already saved in %s; no duplicate scrape needed.", race_key, OUTPUT_FILE)
+                return 0
+        except (OSError, json.JSONDecodeError):
+            pass
 
     race_base = f"{BASE_URL}/{race_id}/{slug}"
     LOG.info("Inside post-race window; scraping %s.", race_base)
@@ -312,9 +307,7 @@ def main() -> int:
 
     # Do not overwrite a previously good JSON with an empty/error result.
     LOG.warning("Race results not confirmed yet. Will retry on the next scheduled run if still in window.")
-    retry_end = race_start + EXPECTED_RACE_DURATION + RETRY_WINDOW
-    if now > retry_end:
-        LOG.error("Retry window has expired without confirmed results.")
+    LOG.warning("No confirmed results yet for the latest completed race. The next scheduled run will retry it.")
     return 0
 
 
