@@ -133,6 +133,48 @@ def fetch_paginated(session,path,key=None):
         time.sleep(DELAY)
     return {'source':'Jolpica API','urls':source_urls,'count':sum(len(r.get('Laps',[])) + len(r.get('PitStops',[])) for r in all_records) if path.endswith(('/laps','/pitstops')) else len(all_records),'data':all_records}
 
+def extract_fastest_laps(race_record):
+    """Flatten Jolpica's per-driver FastestLap fields for easier consumption."""
+    if not isinstance(race_record, dict):
+        return []
+    rows = []
+    for result in race_record.get('Results', []) or []:
+        if not isinstance(result, dict):
+            continue
+        fastest = result.get('FastestLap')
+        if not isinstance(fastest, dict):
+            continue
+        driver = result.get('Driver') or {}
+        constructor = result.get('Constructor') or {}
+        lap_time = fastest.get('Time') or {}
+        average_speed = fastest.get('AverageSpeed') or {}
+        rows.append({
+            'position': result.get('position'),
+            'driver_number': result.get('number'),
+            'driver_id': driver.get('driverId'),
+            'driver_code': driver.get('code'),
+            'driver_name': clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}"),
+            'constructor_id': constructor.get('constructorId'),
+            'constructor_name': constructor.get('name'),
+            'rank': fastest.get('rank'),
+            'lap': fastest.get('lap'),
+            'time': lap_time.get('time') if isinstance(lap_time, dict) else lap_time,
+            'average_speed': average_speed.get('speed') if isinstance(average_speed, dict) else None,
+            'average_speed_units': average_speed.get('units') if isinstance(average_speed, dict) else None,
+        })
+    return rows
+
+
+def add_fastest_laps_by_round(jolpica_data):
+    """Add a compact per-round list without discarding original Results fields."""
+    results = jolpica_data.get('results', {}).get('data', [])
+    jolpica_data['fastest_laps_by_round'] = {
+        str(race.get('round')): extract_fastest_laps(race)
+        for race in results
+        if race.get('round') is not None
+    }
+
+
 def fetch_jolpica_season(session):
     # Fetch only the selected season. Do not request global all-years season,
     # circuit, or status catalogues; derive the circuits used this season from
@@ -157,6 +199,7 @@ def fetch_jolpica_season(session):
     data['pitstops_by_round']={}; data['laps_by_round']={}
     if SKIP_ROUND_DETAILS:
         data['round_details_skipped'] = True
+        add_fastest_laps_by_round(data)
         return data
     for race in races:
         round_no=str(race.get('round','')).strip()
@@ -168,6 +211,7 @@ def fetch_jolpica_season(session):
                 LOG.warning('Jolpica %s round %s failed: %s',name,round_no,e)
                 data[name][round_no]={'source':'Jolpica API','urls':[api_url(endpoint)],'count':0,'data':[],'error':f'{type(e).__name__}: {e}'}
             time.sleep(DELAY)
+    add_fastest_laps_by_round(data)
     return data
 
 def _ics_unescape(value):
@@ -307,15 +351,30 @@ def main(argv=None):
     # Convenient derived summary joins Jolpica classification, fastest laps and F1.com rows.
     jol=document['sources'].get('jolpica',{})
     rounds=jol.get('races',{}).get('data',[]) if isinstance(jol,dict) else []
+    result_races=jol.get('results',{}).get('data',[]) if isinstance(jol,dict) else []
+    qual_races=jol.get('qualifying',{}).get('data',[]) if isinstance(jol,dict) else []
+    sprint_races=jol.get('sprint',{}).get('data',[]) if isinstance(jol,dict) else []
     target=norm(race_name(event['summary']))
     matched=next((r for r in rounds if norm(r.get('raceName',''))==target),None)
-    if matched:
-        round_no=str(matched.get('round'))
-        result_races=jol.get('results',{}).get('data',[])
-        race_results=next((r for r in result_races if str(r.get('round'))==round_no),None)
-        qual_races=jol.get('qualifying',{}).get('data',[])
-        sprint_races=jol.get('sprint',{}).get('data',[])
-        document['current_race']={'round':round_no,'race_name':matched.get('raceName'),'race_metadata':matched,'results':race_results,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
+    # If the calendar endpoint is empty or incomplete, use the race's result
+    # record as a fallback so current.json can still include fastest laps.
+    race_results=next((r for r in result_races if norm(r.get('raceName',''))==target),None)
+    if matched is None and race_results is not None:
+        matched = {
+            'season': race_results.get('season', str(SEASON)),
+            'round': race_results.get('round'),
+            'raceName': race_results.get('raceName'),
+            'date': race_results.get('date'),
+            'Circuit': race_results.get('Circuit'),
+            'url': race_results.get('url'),
+            '_derived_from': 'Jolpica results fallback (race calendar metadata unavailable)',
+        }
+    if matched or race_results:
+        round_no=str((matched or race_results).get('round'))
+        if race_results is None:
+            race_results=next((r for r in result_races if str(r.get('round'))==round_no),None)
+        fastest_laps=extract_fastest_laps(race_results)
+        document['current_race']={'round':round_no,'race_name':(matched or race_results).get('raceName'),'race_metadata':matched,'results':race_results,'fastest_laps':fastest_laps,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUTPUT,document)
     LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
@@ -328,6 +387,7 @@ def main(argv=None):
         'generated_at_utc': document['generated_at_utc'],
         'race_window': document['race_window'],
         'current_race': document.get('current_race'),
+        'fastest_laps': (document.get('current_race') or {}).get('fastest_laps', []),
         'sources': {'formula1_com': document.get('sources',{}).get('formula1_com',{})},
     }
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)

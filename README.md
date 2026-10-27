@@ -7,7 +7,7 @@ This workflow writes two JSON files using only the selected/current season (2026
 
 Both files combine data from two sources:
 
-- **Jolpica**: current-season circuits (derived from that season's race calendar), races, constructors, drivers, race results, sprint results, qualifying, pit stops by round, lap-by-lap records by round, driver standings, and constructor standings. The scraper does not request all-years season, circuit, or status catalogues.
+- **Jolpica**: current-season circuits (derived from that season's race calendar), races, constructors, drivers, race results, each driver's fastest-lap time/rank/lap where provided, sprint results, qualifying, pit stops by round, lap-by-lap records by round, driver standings, and constructor standings. The scraper does not request all-years season, circuit, or status catalogues.
 - **Formula1.com**: the selected Grand Prix's official race classification and starting grid (qualifying page is used if the grid page is unavailable).
 
 ## When it runs
@@ -23,11 +23,12 @@ GitHub Actions cron is best-effort and may run late.
 - `season`: year being collected.
 - `sources.jolpica`: normalized resource collections and original API URLs. Laps and pit stops are grouped by round. Each resource includes `count`, `urls`, and `data`; failures include an `error` rather than aborting all other resources.
 - `sources.formula1_com`: official race result and starting-grid scrape for the selected race.
-- `current_race`: convenient selection of the chosen round's Jolpica race metadata, results, qualifying, sprint, laps and pit stops.
+- `current_race`: convenient selection of the chosen round's Jolpica race metadata, results, qualifying, sprint, laps, pit stops, and a flattened `fastest_laps` list with driver, team, fastest-lap rank, lap number, time, and average speed where available.
+- `sources.jolpica.fastest_laps_by_round`: flattened per-driver fastest-lap records for each season round, derived from Jolpica's race results (no extra API request).
 
 ### `current.json`
 
-Contains `season`, generation/race-window metadata, `current_race` (the selected latest Grand Prix's race metadata, results, qualifying, sprint, laps and pit stops), and the Formula1.com results/grid for that race. It does not include season-wide drivers, constructors, standings, or other rounds.
+Contains `season`, generation/race-window metadata, `current_race` (the selected latest Grand Prix's race metadata, results, qualifying, sprint, laps, pit stops, and `fastest_laps`), a top-level `fastest_laps` convenience array, and the Formula1.com results/grid for that race. It does not include season-wide drivers, constructors, standings, or other rounds. If Jolpica's race-calendar endpoint is empty, the scraper attempts to build the current-race view from the matching Jolpica results record instead.
 
 Jolpica lap and pit-stop data can be sizeable. `f1-2026.json` stores all records for the selected season, not previous seasons. `current.json` is the compact latest-race view. This project intentionally does not fetch FastF1 telemetry, weather or race-control messages; it uses Jolpica and Formula1.com only.
 
