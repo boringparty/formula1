@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Build one season JSON document from Jolpica, Formula1.com and optional FastF1."""
 from __future__ import annotations
-import json, logging, math, os, re, time
+import argparse, json, logging, math, os, re, time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 import requests
 from bs4 import BeautifulSoup
-from icalendar import Calendar
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SEASON = int(os.getenv('F1_SEASON', '2026'))
 OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', f'f1-{SEASON}.json'))
@@ -19,6 +19,9 @@ CUTOFF_AFTER = timedelta(minutes=150)
 TIMEOUT = 30
 DELAY = float(os.getenv('F1_REQUEST_DELAY', '0.15'))
 FORCE = os.getenv('F1_FORCE_SCRAPE', '').lower() in {'1','true','yes','on'}
+SKIP_FASTF1 = False
+SKIP_ROUND_DETAILS = False
+RACE_FILTER = ''
 LOG = logging.getLogger('f1-json')
 HEADERS = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36','Accept-Language':'en-US,en;q=0.9','Referer':'https://www.formula1.com/'}
 RACE_URLS = {
@@ -141,8 +144,12 @@ def fetch_jolpica_season(session):
             LOG.warning('Jolpica %s failed: %s',name,e); data[name]={'source':'Jolpica API','urls':[api_url(path)],'count':0,'data':[],'error':f'{type(e).__name__}: {e}'}
         time.sleep(DELAY)
     races=data.get('races',{}).get('data',[])
-    # Laps and pit stops are indexed by round. Collect every round; both are paginated.
+    # Laps and pit stops are indexed by round. Collect every round unless
+    # --skip-round-details is used for a faster local smoke test.
     data['pitstops_by_round']={}; data['laps_by_round']={}
+    if SKIP_ROUND_DETAILS:
+        data['round_details_skipped'] = True
+        return data
     for race in races:
         round_no=str(race.get('round','')).strip()
         if not round_no: continue
@@ -155,18 +162,62 @@ def fetch_jolpica_season(session):
             time.sleep(DELAY)
     return data
 
+def _ics_unescape(value):
+    return value.replace(r'\n', '\n').replace(r'\N', '\n').replace(r'\,', ',').replace(r'\;', ';').replace(r'\\', '\\')
+
+def _parse_ics_datetime(value, tzid=None):
+    value = value.strip()
+    if len(value) == 8:  # Date-only entries are not race start times.
+        return None
+    fmt = '%Y%m%dT%H%M%SZ' if value.endswith('Z') else '%Y%m%dT%H%M%S'
+    try:
+        dt = datetime.strptime(value, fmt)
+    except ValueError:
+        return None
+    if value.endswith('Z'):
+        return dt.replace(tzinfo=timezone.utc)
+    if tzid:
+        try:
+            return dt.replace(tzinfo=ZoneInfo(tzid))
+        except ZoneInfoNotFoundError:
+            LOG.warning('Unknown calendar timezone %s; treating event as UTC', tzid)
+    return dt.replace(tzinfo=timezone.utc)
+
 def get_calendar(session):
-    r=session.get(CALENDAR_URL,timeout=TIMEOUT); r.raise_for_status(); cal=Calendar.from_ical(r.content); events=[]
-    for c in cal.walk('VEVENT'):
-        summary=clean(c.get('SUMMARY',''))
-        low=summary.lower()
-        if 'grand prix' not in low or any(x in low for x in ('practice','qualifying','sprint','warm-up','warm up')): continue
-        v=c.get('DTSTART')
-        if not v: continue
-        dt=v.dt
-        if not isinstance(dt,datetime): continue
-        if dt.tzinfo is None: dt=dt.replace(tzinfo=timezone.utc)
-        events.append({'summary':summary,'start_utc':dt.astimezone(timezone.utc),'uid':clean(c.get('UID',''))})
+    """Read the small subset of iCalendar needed for race-event selection."""
+    r=session.get(CALENDAR_URL,timeout=TIMEOUT); r.raise_for_status()
+    # Unfold RFC 5545 continuation lines before splitting event properties.
+    lines=[]
+    for line in r.text.replace('\r\n', '\n').replace('\r', '\n').split('\n'):
+        if line.startswith((' ', '\t')) and lines:
+            lines[-1] += line[1:]
+        else:
+            lines.append(line)
+    events=[]; current=None
+    for line in lines:
+        if line == 'BEGIN:VEVENT':
+            current={}; continue
+        if line == 'END:VEVENT' and current is not None:
+            summary=_ics_unescape(current.get('SUMMARY',''))
+            low=summary.lower()
+            if 'grand prix' in low and not any(x in low for x in ('practice','qualifying','sprint','warm-up','warm up')):
+                dt=_parse_ics_datetime(current.get('DTSTART',''),current.get('DTSTART_TZID'))
+                if dt is not None:
+                    events.append({'summary':clean(summary),'start_utc':dt.astimezone(timezone.utc),'uid':clean(current.get('UID',''))})
+            current=None; continue
+        if current is None or ':' not in line:
+            continue
+        left,value=line.split(':',1)
+        bits=left.split(';'); prop=bits[0].upper()
+        params={}
+        for bit in bits[1:]:
+            if '=' in bit:
+                k,v=bit.split('=',1); params[k.upper()]=v.strip('"')
+        if prop in ('SUMMARY','UID'):
+            current[prop]=value
+        elif prop=='DTSTART':
+            current['DTSTART']=value
+            current['DTSTART_TZID']=params.get('TZID')
     return sorted(events,key=lambda x:x['start_utc'])
 def race_name(summary):
     m=re.search(r'\(([^()]*Grand Prix)\)',summary,re.I)
@@ -174,6 +225,10 @@ def race_name(summary):
     m=re.search(r'((?:[A-Za-zÀ-ÿ0-9\'’.-]+\s+){0,5}Grand Prix)',summary,re.I)
     return clean(m.group(1)) if m else clean(summary)
 def select_event(events,now):
+    completed=[e for e in events if e['start_utc']+START_AFTER<=now]
+    if RACE_FILTER:
+        matches=[e for e in completed if norm(RACE_FILTER) in norm(e['summary']) or norm(RACE_FILTER) in norm(race_name(e['summary']))]
+        return max(matches,key=lambda x:x['start_utc']) if matches else None
     if FORCE:
         candidates=[e for e in events if e['start_utc']+START_AFTER<=now]
         return max(candidates,key=lambda x:x['start_utc']) if candidates else None
@@ -215,8 +270,7 @@ def fetch_fastf1(session_name):
     try:
         import fastf1
         cache=Path(os.getenv('FASTF1_CACHE_DIR','.fastf1-cache')); cache.mkdir(parents=True,exist_ok=True); fastf1.Cache.enable_cache(str(cache))
-        username=os.getenv('F1_USERNAME','').strip(); password=os.getenv('F1_PASSWORD','')
-        # FastF1 auth is not attempted here: credentials alone do not guarantee archive access.
+        # FastF1 is optional: missing archive files must not fail the main scrape.
         session=fastf1.get_session(SEASON,session_name,'R'); session.load(laps=True,telemetry=False,weather=True,messages=True)
         laps=session.laps.copy()
         def frame_records(frame):
@@ -232,7 +286,23 @@ def fetch_fastf1(session_name):
     except Exception as e:
         return {'ok':False,'source':'FastF1','error':f'{type(e).__name__}: {e}','note':'Optional source; Jolpica and Formula1.com data are still saved.'}
 
-def main():
+def main(argv=None):
+    global SEASON, OUTPUT, F1_BASE, FORCE, SKIP_FASTF1, SKIP_ROUND_DETAILS, RACE_FILTER
+    parser = argparse.ArgumentParser(description='Collect F1 season data into one JSON file.')
+    parser.add_argument('--season', type=int, default=SEASON, help='season year (default: %(default)s)')
+    parser.add_argument('--output', type=Path, default=OUTPUT, help='output JSON path (default: %(default)s)')
+    parser.add_argument('--force', action='store_true', help='scrape the latest completed Grand Prix outside the automatic race window')
+    parser.add_argument('--race', help='select a completed Grand Prix by name, e.g. United States Grand Prix')
+    parser.add_argument('--skip-fastf1', action='store_true', help='skip optional FastF1 timing data')
+    parser.add_argument('--skip-round-details', action='store_true', help='skip per-round lap and pit-stop endpoints (faster smoke test)')
+    args = parser.parse_args(argv)
+    SEASON = args.season
+    OUTPUT = args.output
+    F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
+    FORCE = FORCE or args.force or bool(args.race)
+    SKIP_FASTF1 = args.skip_fastf1
+    SKIP_ROUND_DETAILS = args.skip_round_details
+    RACE_FILTER = args.race or ''
     logging.basicConfig(level=os.getenv('LOG_LEVEL','INFO'),format='%(asctime)s %(levelname)s %(message)s')
     session=requests.Session(); session.headers.update(HEADERS); now=datetime.now(timezone.utc)
     try: events=get_calendar(session)
@@ -247,7 +317,10 @@ def main():
     try: document['sources']['jolpica']=fetch_jolpica_season(session)
     except Exception as e: document['sources']['jolpica']={'error':f'{type(e).__name__}: {e}'}; LOG.exception('Jolpica fetch failed')
     document['sources']['formula1_com']=fetch_formula1_current(session,event)
-    document['sources']['fastf1']=fetch_fastf1(race_name(event['summary']))
+    if SKIP_FASTF1:
+        document['sources']['fastf1']={'ok':False,'source':'FastF1','skipped':True,'note':'Skipped by --skip-fastf1.'}
+    else:
+        document['sources']['fastf1']=fetch_fastf1(race_name(event['summary']))
     # Convenient derived summary joins Jolpica classification, fastest laps and F1.com rows.
     jol=document['sources'].get('jolpica',{})
     rounds=jol.get('races',{}).get('data',[]) if isinstance(jol,dict) else []
@@ -260,7 +333,24 @@ def main():
         qual_races=jol.get('qualifying',{}).get('data',[])
         sprint_races=jol.get('sprint',{}).get('data',[])
         document['current_race']={'round':round_no,'race_name':matched.get('raceName'),'race_metadata':matched,'results':race_results,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUTPUT,document)
     LOG.info('Wrote one consolidated JSON file: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
-    return 0 if document['sources'].get('jolpica',{}).get('races',{}).get('count',0) else 1
+
+    # Do not make the whole workflow fail just because an optional source or a
+    # summary count is missing. Jolpica can return useful data even when its
+    # metadata total/count is absent or zero; check the actual saved records.
+    jolpica = document.get('sources', {}).get('jolpica', {})
+    race_records = jolpica.get('races', {}).get('data', []) if isinstance(jolpica, dict) else []
+    result_records = jolpica.get('results', {}).get('data', []) if isinstance(jolpica, dict) else []
+    f1 = document.get('sources', {}).get('formula1_com', {})
+    f1_results_ok = bool(f1.get('race_results', {}).get('ok')) if isinstance(f1, dict) else False
+    core_data_saved = bool(race_records or result_records or f1_results_ok)
+    if not core_data_saved:
+        LOG.error('JSON was written, but no race calendar/results data was found in the core sources.')
+        return 1
+    if not race_records:
+        LOG.warning('Jolpica race metadata is empty; workflow succeeds because other core race data was saved.')
+    LOG.info('Core race data saved successfully. FastF1 is optional and its failure will not fail this workflow.')
+    return 0
 if __name__=='__main__': raise SystemExit(main())

@@ -34,7 +34,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements-fastf1.txt
       - name: Fetch and consolidate F1 data
         run: python scrape_f1_season.py
       - name: Commit consolidated JSON
