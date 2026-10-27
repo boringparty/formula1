@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "season": 2026,
+  "race": "United States Grand Prix",
+  "race_key": "1297:united-states:2026-10-25",
+  "attempted_at_utc": "2026-10-27T05:14:20.762635+00:00",
+  "error": "ModuleNotFoundError: No module named 'fastf1'",
+  "note": "Check the Actions log. Credentials are never written to this file."
+}

@@ -3,8 +3,9 @@
   "season": 2026,
   "race_id": 1297,
   "race": "F1: Grand Prix (United States Grand Prix)",
+  "fastf1_event_name": "United States Grand Prix",
   "calendar_event_start_utc": "2026-10-25T20:00:00+00:00",
-  "scraped_at_utc": "2026-10-27T04:57:20.305384+00:00",
+  "scraped_at_utc": "2026-10-27T05:14:19.221589+00:00",
   "race_url": "https://www.formula1.com/en/results/2026/races/1297/united-states",
   "race_results": {
     "url": "https://www.formula1.com/en/results/2026/races/1297/united-states/race-result",
