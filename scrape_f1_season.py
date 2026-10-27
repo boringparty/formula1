@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one season JSON document from Jolpica, Formula1.com and optional FastF1."""
+"""Build one season JSON document from Jolpica and Formula1.com."""
 from __future__ import annotations
 import argparse, json, logging, math, os, re, time
 from datetime import datetime, timedelta, timezone
@@ -19,7 +19,6 @@ CUTOFF_AFTER = timedelta(minutes=150)
 TIMEOUT = 30
 DELAY = float(os.getenv('F1_REQUEST_DELAY', '0.15'))
 FORCE = os.getenv('F1_FORCE_SCRAPE', '').lower() in {'1','true','yes','on'}
-SKIP_FASTF1 = False
 SKIP_ROUND_DETAILS = False
 RACE_FILTER = ''
 LOG = logging.getLogger('f1-json')
@@ -265,42 +264,19 @@ def fetch_formula1_current(session,event):
         grid={'source':'Formula1.com qualifying fallback','url':qualifying['url'],'ok':qualifying['ok'],'headers':qualifying['headers'],'rows':qualifying['rows'],'error':qualifying['error']} if qualifying['ok'] else {'source':'Formula1.com starting-grid','ok':False,'rows':[],'error':'Starting grid and qualifying unavailable.'}
     return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid':grid}
 
-def fetch_fastf1(session_name):
-    """Optional detailed timing bundle; returns None with a clear error if unavailable."""
-    try:
-        import fastf1
-        cache=Path(os.getenv('FASTF1_CACHE_DIR','.fastf1-cache')); cache.mkdir(parents=True,exist_ok=True); fastf1.Cache.enable_cache(str(cache))
-        # FastF1 is optional: missing archive files must not fail the main scrape.
-        session=fastf1.get_session(SEASON,session_name,'R'); session.load(laps=True,telemetry=False,weather=True,messages=True)
-        laps=session.laps.copy()
-        def frame_records(frame):
-            if frame is None or getattr(frame,'empty',False):return []
-            return [plain(row) for row in frame.to_dict(orient='records')]
-        fastest=[]
-        if laps is not None and not laps.empty:
-            for driver in sorted(str(x) for x in laps['Driver'].dropna().unique()):
-                dl=laps.pick_drivers(driver); valid=dl[dl['LapTime'].notna()]
-                if valid.empty:continue
-                lap=valid.pick_fastest(); fastest.append({'driver':driver,'driver_number':plain(lap.get('DriverNumber')),'team':plain(lap.get('Team')),'lap_number':plain(lap.get('LapNumber')),'lap_time':plain(lap.get('LapTime')),'sector_1':plain(lap.get('Sector1Time')),'sector_2':plain(lap.get('Sector2Time')),'sector_3':plain(lap.get('Sector3Time')),'speed_i1':plain(lap.get('SpeedI1')),'speed_i2':plain(lap.get('SpeedI2')),'speed_finish':plain(lap.get('SpeedFL')),'speed_trap':plain(lap.get('SpeedST')),'compound':plain(lap.get('Compound')),'tyre_life':plain(lap.get('TyreLife'))})
-        return {'ok':True,'source':'FastF1','session':'Race','laps':frame_records(laps),'fastest_laps':fastest,'weather':frame_records(getattr(session,'weather_data',None)),'race_control_messages':frame_records(getattr(session,'race_control_messages',None)),'note':'FastF1 telemetry can be added if available; this bundle includes lap records, personal fastest-lap details, weather and race-control messages.'}
-    except Exception as e:
-        return {'ok':False,'source':'FastF1','error':f'{type(e).__name__}: {e}','note':'Optional source; Jolpica and Formula1.com data are still saved.'}
-
 def main(argv=None):
-    global SEASON, OUTPUT, F1_BASE, FORCE, SKIP_FASTF1, SKIP_ROUND_DETAILS, RACE_FILTER
+    global SEASON, OUTPUT, F1_BASE, FORCE, SKIP_ROUND_DETAILS, RACE_FILTER
     parser = argparse.ArgumentParser(description='Collect F1 season data into one JSON file.')
     parser.add_argument('--season', type=int, default=SEASON, help='season year (default: %(default)s)')
     parser.add_argument('--output', type=Path, default=OUTPUT, help='output JSON path (default: %(default)s)')
     parser.add_argument('--force', action='store_true', help='scrape the latest completed Grand Prix outside the automatic race window')
     parser.add_argument('--race', help='select a completed Grand Prix by name, e.g. United States Grand Prix')
-    parser.add_argument('--skip-fastf1', action='store_true', help='skip optional FastF1 timing data')
     parser.add_argument('--skip-round-details', action='store_true', help='skip per-round lap and pit-stop endpoints (faster smoke test)')
     args = parser.parse_args(argv)
     SEASON = args.season
     OUTPUT = args.output
     F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
     FORCE = FORCE or args.force or bool(args.race)
-    SKIP_FASTF1 = args.skip_fastf1
     SKIP_ROUND_DETAILS = args.skip_round_details
     RACE_FILTER = args.race or ''
     logging.basicConfig(level=os.getenv('LOG_LEVEL','INFO'),format='%(asctime)s %(levelname)s %(message)s')
@@ -317,10 +293,6 @@ def main(argv=None):
     try: document['sources']['jolpica']=fetch_jolpica_season(session)
     except Exception as e: document['sources']['jolpica']={'error':f'{type(e).__name__}: {e}'}; LOG.exception('Jolpica fetch failed')
     document['sources']['formula1_com']=fetch_formula1_current(session,event)
-    if SKIP_FASTF1:
-        document['sources']['fastf1']={'ok':False,'source':'FastF1','skipped':True,'note':'Skipped by --skip-fastf1.'}
-    else:
-        document['sources']['fastf1']=fetch_fastf1(race_name(event['summary']))
     # Convenient derived summary joins Jolpica classification, fastest laps and F1.com rows.
     jol=document['sources'].get('jolpica',{})
     rounds=jol.get('races',{}).get('data',[]) if isinstance(jol,dict) else []
@@ -351,6 +323,6 @@ def main(argv=None):
         return 1
     if not race_records:
         LOG.warning('Jolpica race metadata is empty; workflow succeeds because other core race data was saved.')
-    LOG.info('Core race data saved successfully. FastF1 is optional and its failure will not fail this workflow.')
+    LOG.info('Core race data saved successfully.')
     return 0
 if __name__=='__main__': raise SystemExit(main())

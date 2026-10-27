@@ -1,2 +1,0 @@
--r requirements.txt
-fastf1>=3.9,<4

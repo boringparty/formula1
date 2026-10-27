@@ -1,10 +1,8 @@
-
 name: F1 season JSON
 
 on:
   schedule:
     - cron: "*/15 * * * *"
-
   workflow_dispatch:
     inputs:
       force:
@@ -24,40 +22,29 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     env:
       F1_FORCE_SCRAPE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
-
       - name: Install dependencies
-        run: python -m pip install -r requirements-fastf1.txt
-
+        run: python -m pip install -r requirements.txt
       - name: Fetch and consolidate F1 data
-        env:
-          F1_USERNAME: ${{ secrets.F1_USERNAME }}
-          F1_PASSWORD: ${{ secrets.F1_PASSWORD }}
         run: python scrape_f1_season.py
-
       - name: Commit consolidated JSON
         run: |
           if [ -z "$(git status --porcelain -- 'f1-*.json')" ]; then
             echo "No JSON changes."
             exit 0
           fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add -- 'f1-*.json'
           git commit -m "Update consolidated F1 season data"
           git push

@@ -1,9 +1,0 @@
-{
-  "ok": false,
-  "season": 2026,
-  "race": "United States Grand Prix",
-  "race_key": "1297:united-states:2026-10-25",
-  "attempted_at_utc": "2026-10-27T05:16:08.163155+00:00",
-  "error": "DataNotLoadedError: The data you are trying to access has not been loaded yet. See `Session.load`",
-  "note": "Check the Actions log. Credentials are never written to this file."
-}
