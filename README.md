@@ -1,4 +1,4 @@
-# Consolidated F1 season JSON
+## Consolidated F1 season JSON
 
 This workflow writes **one JSON file** (`f1-2026.json` by default) combining three sources:
 
