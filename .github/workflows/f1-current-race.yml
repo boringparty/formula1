@@ -2,9 +2,9 @@ name: F1 current race JSON
 
 on:
   schedule:
-    # GitHub Actions cron is UTC. The script checks the calendar and makes
-    # zero Formula1.com requests unless the race is in its post-race window.
-    - cron: "17 * * * *"
+    # GitHub Actions cron is UTC. The script checks the calendar every 15 minutes
+    # and requests Formula1.com only from race start + 1h30m through +2h15m.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Scrape only during the current race's post-race window
+      - name: Scrape only during the calendar-defined race window
         run: python scrape_current_race.py
 
       - name: Commit updated JSON and state
