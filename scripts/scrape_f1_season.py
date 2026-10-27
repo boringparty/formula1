@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SEASON = int(os.getenv('F1_SEASON', '2026'))
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', str(REPO_ROOT / f'f1-{SEASON}.json')))
+OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', str(REPO_ROOT / f'current.json')))
 CURRENT_OUTPUT = Path(os.getenv('F1_CURRENT_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
 CALENDAR_URL = os.getenv('F1_CALENDAR_URL', 'https://files-f1.motorsportcalendars.com/f1-calendar_p1_p2_p3_qualifying_sprint_gp.ics')
 JOLPICA = 'https://api.jolpi.ca/ergast/f1'
