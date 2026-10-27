@@ -476,19 +476,26 @@ def main(argv=None):
     write_json(OUTPUT,document)
     LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
 
-    # A compact second file contains only the selected/latest Grand Prix, not
-    # the season-wide collections. It is updated alongside the full season file.
-    current_document={
-        'schema_version': document['schema_version'],
-        'season': SEASON,
-        'generated_at_utc': document['generated_at_utc'],
-        'race_window': document['race_window'],
-        'current_race': document.get('current_race'),
-        'sources': {'formula1_com': document.get('sources',{}).get('formula1_com',{})},
-    }
+    # current.json is intentionally just the compact driver classification:
+    # one row per driver, with only the nine fields needed downstream.
+    f1_source = document.get('sources', {}).get('formula1_com', {})
+    f1_result = f1_source.get('race_results', {}) if isinstance(f1_source, dict) else {}
+    current_rows = []
+    for row in f1_result.get('rows', []) if isinstance(f1_result, dict) else []:
+        current_rows.append({
+            'driver': row.get('driver'),
+            'team': row.get('team'),
+            'grid': row.get('grid'),
+            'pos': row.get('pos'),
+            'no': row.get('no'),
+            'laps': row.get('laps'),
+            'time_retired': row.get('time_retired'),
+            'pts': row.get('pts'),
+            'fastest_lap': row.get('fastest_lap'),
+        })
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    write_json(CURRENT_OUTPUT,current_document)
-    LOG.info('Wrote latest-race JSON: %s (%d bytes)',CURRENT_OUTPUT,CURRENT_OUTPUT.stat().st_size)
+    write_json(CURRENT_OUTPUT, current_rows)
+    LOG.info('Wrote compact latest-race driver rows: %s (%d bytes)',CURRENT_OUTPUT,CURRENT_OUTPUT.stat().st_size)
 
     # Do not make the whole workflow fail just because an optional source or a
     # summary count is missing. Jolpica can return useful data even when its

@@ -28,7 +28,7 @@ GitHub Actions cron is best-effort and may run late.
 
 ### `current.json`
 
-Contains `season`, generation/race-window metadata, `current_race` (the selected latest Grand Prix's race metadata, results, qualifying, sprint, laps, and pit stops), and the Formula1.com classification for that race with `grid`, `pos`, and `fastest_lap` together in each driver row. It does not include season-wide drivers, constructors, standings, or other rounds. If Jolpica's season-wide race or results data is empty/incomplete, the scraper retries the selected round directly. If Jolpica still has no race data, `current_race` remains a small non-null fallback object and the Formula1.com classification remains available under `sources.formula1_com`.
+Is only a JSON array of driver rows. Each row contains exactly these nine fields: `driver`, `team`, `grid`, `pos`, `no`, `laps`, `time_retired`, `pts`, and `fastest_lap`. There is no surrounding metadata, race object, source information, or duplicate driver list. Missing values are `null`. The full `f1-2026.json` retains the comprehensive season data and metadata.
 
 Jolpica lap and pit-stop data can be sizeable. `f1-2026.json` stores all records for the selected season, not previous seasons. `current.json` is the compact latest-race view. This project intentionally does not fetch FastF1 telemetry, weather or race-control messages; it uses Jolpica and Formula1.com only.
 
