@@ -39,12 +39,12 @@ jobs:
         run: python scrape_f1_season.py
       - name: Commit consolidated JSON
         run: |
-          if [ -z "$(git status --porcelain -- 'f1-*.json')" ]; then
+          if [ -z "$(git status --porcelain -- 'f1-*.json' current.json)" ]; then
             echo "No JSON changes."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- 'f1-*.json'
+          git add -- 'f1-*.json' current.json
           git commit -m "Update consolidated F1 season data"
           git push

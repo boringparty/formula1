@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SEASON = int(os.getenv('F1_SEASON', '2026'))
 OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', f'f1-{SEASON}.json'))
+CURRENT_OUTPUT = Path(os.getenv('F1_CURRENT_OUTPUT_FILE', 'current.json'))
 CALENDAR_URL = os.getenv('F1_CALENDAR_URL', 'https://files-f1.motorsportcalendars.com/f1-calendar_p1_p2_p3_qualifying_sprint_gp.ics')
 JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
@@ -133,8 +134,10 @@ def fetch_paginated(session,path,key=None):
     return {'source':'Jolpica API','urls':source_urls,'count':sum(len(r.get('Laps',[])) + len(r.get('PitStops',[])) for r in all_records) if path.endswith(('/laps','/pitstops')) else len(all_records),'data':all_records}
 
 def fetch_jolpica_season(session):
-    # Core reference tables and all season-level event/session tables.
-    specs=[('seasons','seasons','SeasonTable'),('circuits','circuits','CircuitTable'),(f'{SEASON}/races',f'{SEASON}/races','RaceTable'),(f'{SEASON}/constructors',f'{SEASON}/constructors','ConstructorTable'),(f'{SEASON}/drivers',f'{SEASON}/drivers','DriverTable'),(f'{SEASON}/results',f'{SEASON}/results','RaceTable'),(f'{SEASON}/sprint',f'{SEASON}/sprint','RaceTable'),(f'{SEASON}/qualifying',f'{SEASON}/qualifying','RaceTable'),(f'{SEASON}/driverstandings',f'{SEASON}/driverstandings','StandingsTable'),(f'{SEASON}/constructorstandings',f'{SEASON}/constructorstandings','StandingsTable'),('status','status','StatusTable')]
+    # Fetch only the selected season. Do not request global all-years season,
+    # circuit, or status catalogues; derive the circuits used this season from
+    # the season's race calendar instead.
+    specs=[(f'{SEASON}/races',f'{SEASON}/races','RaceTable'),(f'{SEASON}/constructors',f'{SEASON}/constructors','ConstructorTable'),(f'{SEASON}/drivers',f'{SEASON}/drivers','DriverTable'),(f'{SEASON}/results',f'{SEASON}/results','RaceTable'),(f'{SEASON}/sprint',f'{SEASON}/sprint','RaceTable'),(f'{SEASON}/qualifying',f'{SEASON}/qualifying','RaceTable'),(f'{SEASON}/driverstandings',f'{SEASON}/driverstandings','StandingsTable'),(f'{SEASON}/constructorstandings',f'{SEASON}/constructorstandings','StandingsTable')]
     data={}
     for name,path,key in specs:
         LOG.info('Jolpica: %s',name)
@@ -143,8 +146,14 @@ def fetch_jolpica_season(session):
             LOG.warning('Jolpica %s failed: %s',name,e); data[name]={'source':'Jolpica API','urls':[api_url(path)],'count':0,'data':[],'error':f'{type(e).__name__}: {e}'}
         time.sleep(DELAY)
     races=data.get('races',{}).get('data',[])
-    # Laps and pit stops are indexed by round. Collect every round unless
-    # --skip-round-details is used for a faster local smoke test.
+    circuits={}
+    for race in races:
+        circuit=race.get('Circuit')
+        if isinstance(circuit,dict) and circuit.get('circuitId'):
+            circuits[circuit['circuitId']]=circuit
+    data['circuits']={'source':'Jolpica API (derived from this season race calendar)','urls':data.get('races',{}).get('urls',[]),'count':len(circuits),'data':list(circuits.values())}
+    # Laps and pit stops are collected only for rounds in the selected season.
+    # --skip-round-details is useful for a quick local smoke test.
     data['pitstops_by_round']={}; data['laps_by_round']={}
     if SKIP_ROUND_DETAILS:
         data['round_details_skipped'] = True
@@ -265,16 +274,18 @@ def fetch_formula1_current(session,event):
     return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid':grid}
 
 def main(argv=None):
-    global SEASON, OUTPUT, F1_BASE, FORCE, SKIP_ROUND_DETAILS, RACE_FILTER
+    global SEASON, OUTPUT, CURRENT_OUTPUT, F1_BASE, FORCE, SKIP_ROUND_DETAILS, RACE_FILTER
     parser = argparse.ArgumentParser(description='Collect F1 season data into one JSON file.')
     parser.add_argument('--season', type=int, default=SEASON, help='season year (default: %(default)s)')
-    parser.add_argument('--output', type=Path, default=OUTPUT, help='output JSON path (default: %(default)s)')
+    parser.add_argument('--output', type=Path, default=OUTPUT, help='full current-season JSON path (default: %(default)s)')
+    parser.add_argument('--current-output', type=Path, default=CURRENT_OUTPUT, help='latest selected Grand Prix JSON path (default: %(default)s)')
     parser.add_argument('--force', action='store_true', help='scrape the latest completed Grand Prix outside the automatic race window')
     parser.add_argument('--race', help='select a completed Grand Prix by name, e.g. United States Grand Prix')
     parser.add_argument('--skip-round-details', action='store_true', help='skip per-round lap and pit-stop endpoints (faster smoke test)')
     args = parser.parse_args(argv)
     SEASON = args.season
     OUTPUT = args.output
+    CURRENT_OUTPUT = args.current_output
     F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
     FORCE = FORCE or args.force or bool(args.race)
     SKIP_ROUND_DETAILS = args.skip_round_details
@@ -307,7 +318,21 @@ def main(argv=None):
         document['current_race']={'round':round_no,'race_name':matched.get('raceName'),'race_metadata':matched,'results':race_results,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUTPUT,document)
-    LOG.info('Wrote one consolidated JSON file: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
+    LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
+
+    # A compact second file contains only the selected/latest Grand Prix, not
+    # the season-wide collections. It is updated alongside the full season file.
+    current_document={
+        'schema_version': document['schema_version'],
+        'season': SEASON,
+        'generated_at_utc': document['generated_at_utc'],
+        'race_window': document['race_window'],
+        'current_race': document.get('current_race'),
+        'sources': {'formula1_com': document.get('sources',{}).get('formula1_com',{})},
+    }
+    CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    write_json(CURRENT_OUTPUT,current_document)
+    LOG.info('Wrote latest-race JSON: %s (%d bytes)',CURRENT_OUTPUT,CURRENT_OUTPUT.stat().st_size)
 
     # Do not make the whole workflow fail just because an optional source or a
     # summary count is missing. Jolpica can return useful data even when its
