@@ -134,7 +134,7 @@ def fetch_paginated(session,path,key=None):
     return {'source':'Jolpica API','urls':source_urls,'count':sum(len(r.get('Laps',[])) + len(r.get('PitStops',[])) for r in all_records) if path.endswith(('/laps','/pitstops')) else len(all_records),'data':all_records}
 
 def extract_fastest_laps(race_record):
-    """Flatten Jolpica's per-driver FastestLap fields for easier consumption."""
+    """Return only each driver's fastest-lap time; omit rank, lap and speed."""
     if not isinstance(race_record, dict):
         return []
     rows = []
@@ -144,24 +144,14 @@ def extract_fastest_laps(race_record):
         fastest = result.get('FastestLap')
         if not isinstance(fastest, dict):
             continue
-        driver = result.get('Driver') or {}
-        constructor = result.get('Constructor') or {}
         lap_time = fastest.get('Time') or {}
-        average_speed = fastest.get('AverageSpeed') or {}
-        rows.append({
-            'position': result.get('position'),
-            'driver_number': result.get('number'),
-            'driver_id': driver.get('driverId'),
-            'driver_code': driver.get('code'),
-            'driver_name': clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}"),
-            'constructor_id': constructor.get('constructorId'),
-            'constructor_name': constructor.get('name'),
-            'rank': fastest.get('rank'),
-            'lap': fastest.get('lap'),
-            'time': lap_time.get('time') if isinstance(lap_time, dict) else lap_time,
-            'average_speed': average_speed.get('speed') if isinstance(average_speed, dict) else None,
-            'average_speed_units': average_speed.get('units') if isinstance(average_speed, dict) else None,
-        })
+        lap_time = lap_time.get('time') if isinstance(lap_time, dict) else lap_time
+        if not lap_time:
+            continue
+        driver = result.get('Driver') or {}
+        name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
+        if name:
+            rows.append({'driver': name, 'fastest_lap': lap_time})
     return rows
 
 
@@ -300,12 +290,46 @@ def parse_f1_table(html):
             else: vals.append(clean(c.get_text(' ',strip=True)))
         if not any(vals):continue
         row={ (headers[i].replace(' / ','_').replace(' ','_').replace('-','_') if i<len(headers) and headers[i] else f'column_{i+1}'):v for i,v in enumerate(vals)}
-        row['position']=row.get('pos'); row['driver_number']=row.get('no'); rows.append(row)
+        row['driver_number']=row.get('no'); rows.append(row)
     return {'ok':bool(rows),'headers':headers,'rows':rows,'error':None if rows else 'No rows found.'}
 def scrape_f1_page(session,url):
     try:
         r=session.get(url,timeout=TIMEOUT); r.raise_for_status(); out=parse_f1_table(r.text); out.update({'url':url,'status_code':r.status_code,'source':'Formula1.com'}); return out
     except Exception as e:return {'url':url,'source':'Formula1.com','status_code':None,'ok':False,'headers':[],'rows':[],'error':f'{type(e).__name__}: {e}'}
+def attach_fastest_laps_to_formula1_rows(formula1_source, jolpica_race):
+    """Join each driver's fastest-lap time onto the single Formula1.com result row."""
+    if not isinstance(formula1_source, dict):
+        return
+    if not isinstance(jolpica_race, dict):
+        jolpica_race = {}
+    result_table = formula1_source.get('race_results')
+    if not isinstance(result_table, dict) or not isinstance(result_table.get('rows'), list):
+        return
+    by_number = {}
+    by_name = {}
+    for result in jolpica_race.get('Results', []) or []:
+        if not isinstance(result, dict):
+            continue
+        driver = result.get('Driver') or {}
+        fastest = result.get('FastestLap') or {}
+        lap_time = fastest.get('Time') or {}
+        lap_time = lap_time.get('time') if isinstance(lap_time, dict) else lap_time
+        number = clean(driver.get('permanentNumber') or driver.get('number'))
+        name = norm(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
+        if number:
+            by_number[number] = lap_time or None
+        if name:
+            by_name[name] = lap_time or None
+    for row in result_table['rows']:
+        number = clean(row.get('driver_number') or row.get('no'))
+        driver_name = norm(row.get('driver') or row.get('name'))
+        if number and number in by_number:
+            row['fastest_lap'] = by_number[number]
+        else:
+            row['fastest_lap'] = by_name.get(driver_name) if driver_name else None
+    result_table['headers'] = list(dict.fromkeys(result_table.get('headers', []) + ['grid', 'fastest_lap']))
+
+
 def fetch_formula1_current(session,event):
     summary=event['summary'].lower(); match=next(((k,v) for k,v in sorted(RACE_URLS.items(),key=lambda p:len(p[0]),reverse=True) if k in summary),None)
     if not match:return {'ok':False,'error':f'No Formula1.com race mapping for {event["summary"]}'}
@@ -314,8 +338,27 @@ def fetch_formula1_current(session,event):
     grid=scrape_f1_page(session,base+'/starting-grid')
     if not grid['ok']:
         time.sleep(DELAY); qualifying=scrape_f1_page(session,base+'/qualifying')
-        grid={'source':'Formula1.com qualifying fallback','url':qualifying['url'],'ok':qualifying['ok'],'headers':qualifying['headers'],'rows':qualifying['rows'],'error':qualifying['error']} if qualifying['ok'] else {'source':'Formula1.com starting-grid','ok':False,'rows':[],'error':'Starting grid and qualifying unavailable.'}
-    return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid':grid}
+        grid={'source':'Formula1.com qualifying fallback','url':qualifying['url'],'ok':qualifying['ok'],'headers':qualifying['headers'],'rows':qualifying['rows'],'error':qualifying['error']} if qualifying['ok'] else {'source':'Formula1.com starting-grid','url':base+'/starting-grid','ok':False,'rows':[],'error':'Starting grid and qualifying unavailable.'}
+
+    # Join the start position into the finish-classification rows so each driver
+    # appears once: grid = starting position, pos = final race position.
+    grid_by_number = {
+        str(row.get('driver_number') or row.get('no')): row
+        for row in grid.get('rows', [])
+        if row.get('driver_number') or row.get('no')
+    }
+    for row in result.get('rows', []):
+        number = str(row.get('driver_number') or row.get('no') or '')
+        start_row = grid_by_number.get(number)
+        if start_row:
+            row['grid'] = start_row.get('pos') or start_row.get('position')
+        else:
+            row['grid'] = None
+    result['headers'] = list(dict.fromkeys(result.get('headers', []) + ['grid']))
+
+    # Keep the source link/status, but don't emit a second full set of driver rows.
+    grid_metadata = {key: grid.get(key) for key in ('source', 'url', 'ok', 'error') if key in grid}
+    return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid_source':grid_metadata}
 
 def main(argv=None):
     global SEASON, OUTPUT, CURRENT_OUTPUT, F1_BASE, FORCE, SKIP_ROUND_DETAILS, RACE_FILTER
@@ -355,10 +398,42 @@ def main(argv=None):
     qual_races=jol.get('qualifying',{}).get('data',[]) if isinstance(jol,dict) else []
     sprint_races=jol.get('sprint',{}).get('data',[]) if isinstance(jol,dict) else []
     target=norm(race_name(event['summary']))
-    matched=next((r for r in rounds if norm(r.get('raceName',''))==target),None)
-    # If the calendar endpoint is empty or incomplete, use the race's result
-    # record as a fallback so current.json can still include fastest laps.
-    race_results=next((r for r in result_races if norm(r.get('raceName',''))==target),None)
+    # Calendar feeds and Jolpica occasionally phrase GP names differently.
+    # Try exact names first, then a conservative containment match.
+    def find_race(records):
+        exact=next((r for r in records if norm(r.get('raceName',''))==target),None)
+        if exact is not None:
+            return exact
+        candidates=[r for r in records if norm(r.get('raceName','')) and
+                    (norm(r.get('raceName','')) in target or target in norm(r.get('raceName','')))]
+        return candidates[0] if len(candidates)==1 else None
+    matched=find_race(rounds)
+    race_results=find_race(result_races)
+    # If the season-wide results endpoint omitted nested results, explicitly
+    # request the selected round's classification using the calendar round.
+    if race_results is None and matched and matched.get('round'):
+        round_no=str(matched['round'])
+        try:
+            round_payload=fetch_paginated(session,f'{SEASON}/{round_no}/results','RaceTable')
+            race_results=find_race(round_payload.get('data',[]))
+            if race_results is None:
+                race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
+            if race_results:
+                LOG.info('Loaded selected round %s results directly from Jolpica.',round_no)
+        except Exception as exc:
+            LOG.warning('Could not fetch selected-round results from Jolpica: %s',exc)
+    # Last-resort selected-race fetch: keep current.json useful even if the
+    # bulk season endpoint failed or returned no usable race records.
+    if matched is None and race_results is None:
+        try:
+            schedule_payload=fetch_paginated(session,f'{SEASON}/races','RaceTable')
+            matched=find_race(schedule_payload.get('data',[]))
+            if matched and matched.get('round'):
+                round_no=str(matched['round'])
+                round_payload=fetch_paginated(session,f'{SEASON}/{round_no}/results','RaceTable')
+                race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
+        except Exception as exc:
+            LOG.warning('Selected-race Jolpica fallback failed: %s',exc)
     if matched is None and race_results is not None:
         matched = {
             'season': race_results.get('season', str(SEASON)),
@@ -372,9 +447,31 @@ def main(argv=None):
     if matched or race_results:
         round_no=str((matched or race_results).get('round'))
         if race_results is None:
-            race_results=next((r for r in result_races if str(r.get('round'))==round_no),None)
-        fastest_laps=extract_fastest_laps(race_results)
-        document['current_race']={'round':round_no,'race_name':(matched or race_results).get('raceName'),'race_metadata':matched,'results':race_results,'fastest_laps':fastest_laps,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
+            race_results=next((r for r in result_races if str(r.get('round'))==round_no and r.get('Results')),None)
+        if race_results is None:
+            try:
+                round_payload=fetch_paginated(session,f'{SEASON}/{round_no}/results','RaceTable')
+                race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
+            except Exception as exc:
+                LOG.warning('Could not backfill selected-round results for round %s: %s',round_no,exc)
+        document['current_race']={'round':round_no,'race_name':(matched or race_results).get('raceName'),'race_metadata':matched,'results':race_results,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
+    else:
+        f1_source=document['sources'].get('formula1_com',{})
+        f1_result=f1_source.get('race_results',{}) if isinstance(f1_source,dict) else {}
+        document['current_race']={
+            'round':None,
+            'race_name':race_name(event['summary']),
+            'race_metadata':None,
+            'results':None,
+            'qualifying':None,
+            'sprint':None,
+            'pitstops':None,
+            'laps':None,
+            'note':'Jolpica race results were unavailable for this run; Formula1.com classification is retained under sources.formula1_com.'
+        }
+    # Every Formula1.com classification row has the same schema, even if
+    # Jolpica has no fastest-lap data for this run.
+    attach_fastest_laps_to_formula1_rows(document['sources'].get('formula1_com', {}), race_results)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUTPUT,document)
     LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
@@ -387,7 +484,6 @@ def main(argv=None):
         'generated_at_utc': document['generated_at_utc'],
         'race_window': document['race_window'],
         'current_race': document.get('current_race'),
-        'fastest_laps': (document.get('current_race') or {}).get('fastest_laps', []),
         'sources': {'formula1_com': document.get('sources',{}).get('formula1_com',{})},
     }
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
