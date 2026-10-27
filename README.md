@@ -1,52 +1,34 @@
-# F1 current-race scraper
+# Consolidated F1 season JSON
 
-This GitHub Actions setup uses the MotorsportCalendars ICS feed to determine race timing.
-It downloads the calendar on each hourly workflow run, but does **not** request Formula1.com
-unless the current time is inside the post-race window.
+This workflow writes **one JSON file** (`f1-2026.json` by default) combining three sources:
 
-## Files
+- **Jolpica**: seasons, circuits, races, constructors, drivers, race results, sprint results, qualifying, pit stops by round, lap-by-lap records by round, driver standings, constructor standings, and status codes.
+- **Formula1.com**: the selected Grand Prix's official race classification and starting grid (qualifying page is used if the grid page is unavailable).
+- **FastF1**: optional race lap records, each driver's fastest lap, weather, and race-control messages when the session archive can be loaded.
 
-- `scrape_current_race.py` — calendar-aware scraper
-- `requirements.txt` — Python dependencies
-- `.github/workflows/f1-current-race.yml` — hourly workflow and manual trigger
-- `current-race.json` — generated after confirmed race results
-- `.f1-scraper-state.json` — remembers races with confirmed results so they are not scraped again
+## When it runs
 
-## Install
+GitHub Actions checks the MotorsportCalendars calendar every 15 minutes. It only calls the data sources during the selected Grand Prix's scheduled start +90 to +150 minute window. Manually run the workflow with `force=true` to test against the latest completed Grand Prix outside that window.
 
-Copy these files into the root of your GitHub repository, preserving the `.github/workflows/` path.
-In GitHub, open **Settings → Actions → General → Workflow permissions** and enable read/write
-permissions if your organization/repository policy requires it. The workflow also declares
-`contents: write`.
+GitHub Actions cron is best-effort and may run late.
 
-The workflow runs hourly at minute 17 UTC. Each run fetches the ICS calendar, then:
-- exits without contacting Formula1.com outside the post-race window;
-- begins checks about two hours after the scheduled Grand Prix start;
-- retries hourly for up to four additional hours if the official race-results table is not available;
-- saves JSON and records the race as complete once race-result rows are found;
-- uses `starting-grid`, falling back to `qualifying` when the grid page has no rows.
+## Output structure
 
-The output JSON is committed to the repository root. To fetch it from another script, use the
-raw GitHub URL for `current-race.json`.
+- `season`: year being collected.
+- `sources.jolpica`: normalized resource collections and original API URLs. Laps and pit stops are grouped by round. Each resource includes `count`, `urls`, and `data`; failures include an `error` rather than aborting all other resources.
+- `sources.formula1_com`: official race result and starting-grid scrape for the selected race.
+- `sources.fastf1`: optional detailed session data; contains an `ok` flag and an error note if unavailable.
+- `current_race`: convenient selection of the chosen round's Jolpica race metadata, results, qualifying, sprint, laps and pit stops.
 
-## Manual test
+Jolpica lap and pit-stop data can be sizeable. The script paginates responses and stores everything in the same output file. The API does not provide full telemetry; FastF1 may provide additional timing data when its archive is accessible.
 
-From a Python environment:
+## Run locally
 
-```sh
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements.txt
-python scrape_current_race.py
+F1_FORCE_SCRAPE=1 python scrape_f1_season.py
 ```
 
-A manual run outside a post-race window should log that it is waiting and make no Formula1.com
-requests. `workflow_dispatch` lets you run it from the Actions tab.
-
-## Important
-
-The script currently expects the ICS feed to label the Grand Prix event with “Grand Prix”.
-It safely skips unknown event names rather than guessing a Formula1.com URL. If Formula1.com
-changes race IDs/slugs, update `RACE_URLS` in `scrape_current_race.py`.
-
-The state file marks a race complete when race-result rows are found, even if grid/qualifying
-is still unavailable. If you want grid data to be refreshed separately after results publish,
-that should be added as a second completion state.
+Set `F1_SEASON` to change the year. Do not put credentials directly in the repository. FastF1 data is optional; the consolidated Jolpica and Formula1.com data is still written if FastF1 fails.
