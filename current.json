@@ -2,12 +2,15 @@
   {
     "driver": null,
     "team": null,
-    "grid": null,
+    "grid": "Error No results available",
     "pos": "Error No results available",
     "no": null,
     "laps": null,
     "time_retired": null,
     "pts": null,
-    "fastest_lap": null
+    "fastest_lap": null,
+    "q1": null,
+    "q2": null,
+    "q3": null
   }
 ]
