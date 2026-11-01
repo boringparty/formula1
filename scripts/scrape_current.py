@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Build current.json for active race sessions with driver standings and circuit info."""
+"""Build current.json for active race sessions with primary Jolpica API fallback for qualifying/grids."""
 from __future__ import annotations
 import argparse, json, logging, os, re, time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SEASON = int(os.getenv('F1_SEASON', '2026'))
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CURRENT_OUTPUT = Path(os.getenv('F1_CURRENT_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
-CALENDAR_URL = os.getenv('F1_CALENDAR_URL', 'https://files-f1.motorsportcalendars.com/f1-calendar_p1_p2_p3_qualifying_sprint_gp.ics')
 JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
 
@@ -41,10 +39,8 @@ RACE_URLS = {
  'austria':(1288,'austria'),'great britain':(1289,'great-britain'),'british':(1289,'great-britain'),'belgium':(1290,'belgium'),
  'hungary':(1291,'hungary'),'netherlands':(1292,'netherlands'),'italy':(1293,'italy'),'spain':(1294,'spain'),
  'azerbaijan':(1295,'azerbaijan'),'singapore':(1296,'singapore'),'united states':(1297,'united-states'),'usa':(1297,'united-states'),
- 'mexico':(1298,'mexico'),'brazil':(1299,'brazil'),'sao paulo':(1299,'brazil'),'las vegas':(1300,'las-vegas'),'qatar':(1301,'qatar'),'abu dhabi':(1302,'abu-dhabi')}
+ 'mexico':(1298,'mexico'),'brazil':(1299,'brazil'),'sao paulo':(1299,'las-vegas'),'las vegas':(1300,'las-vegas'),'qatar':(1301,'qatar'),'abu dhabi':(1302,'abu-dhabi')}
 
-WEEKEND_START_BEFORE = timedelta(days=3)
-CUTOFF_AFTER = timedelta(hours=6)
 TIMEOUT = 30
 HEADERS = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36'}
 
@@ -56,48 +52,124 @@ def get_standardized_team(raw): return TEAM_NAME_MAP.get(norm(raw), clean(raw))
 def write_json(path, payload):
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
+def fetch_json_safely(session, url):
+    try:
+        r = session.get(url, timeout=TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+        return data.get('MRData', {})
+    except Exception as e:
+        logging.warning('API request failed for %s: %s', url, e)
+        return {}
+
 def main():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     session = requests.Session(); session.headers.update(HEADERS)
     now = datetime.now(timezone.utc)
     
-    # Fetch Jolpica schedule for circuit metadata
-    try:
-        r = session.get(f'{JOLPICA}/{SEASON}.json', timeout=TIMEOUT)
-        races_list = r.json()['MRData']['RaceTable']['Races']
-    except Exception as e:
-        logging.error('Failed to fetch Jolpica schedule: %s', e)
-        return 1
-
-    # Find active or most recent race from ICS calendar
-    # (Simplified calendar evaluation omitted for brevity, mapping via RACE_URLS)
-    target_race_id, target_slug = 1298, 'mexico' # Example active mapping lookup
+    # 1. Fetch Jolpica season schedule to identify rounds & circuits
+    sched_data = fetch_json_safely(session, f'{JOLPICA}/{SEASON}.json')
+    races_list = sched_data.get('RaceTable', {}).get('Races', [])
     
-    # Scrape live session data from Formula1.com
-    base = f'{F1_BASE}/{target_race_id}/{target_slug}'
-    res_page = session.get(base + '/race-result', timeout=TIMEOUT)
-    grid_page = session.get(base + '/starting-grid', timeout=TIMEOUT)
-    
-    # Parse circuit details for current.json container
-        # Extract circuit info from Jolpica matching round
-    circuit_info = {}
+    # Determine current/latest round (using a simplified lookup or matching current date)
+    # For active session tracking, we check the most recent or matching round from the schedule
+    active_round = None
+    active_race_meta = {}
     for r in races_list:
-        if str(r.get('round')) == '19': # matched round example
-            circuit_info = {
-                'circuitId': r.get('Circuit', {}).get('circuitId'),
-                'circuitName': r.get('Circuit', {}).get('circuitName'),
-                'locality': r.get('Circuit', {}).get('Location', {}).get('locality'),
-                'country': r.get('Circuit', {}).get('Location', {}).get('country')
-            }
+        # Simple heuristic or datetime check can be plugged here; defaulting to latest/upcoming
+        # Let's check matching round or default to the last race that occurred or is occurring
+        active_round = str(r.get('round'))
+        active_race_meta = r
+        # Break condition can be refined based on date, but checking upcoming/recent works nicely
+        race_date_str = r.get('date', '2026-01-01')
+        if datetime.strptime(race_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc) >= now - timedelta(days=3):
+            break
+
+    if not active_round:
+        active_round = '1'
+        active_race_meta = races_list[0] if races_list else {}
+
+    logging.info('Targeting Round %s: %s', active_round, active_race_meta.get('raceName'))
+
+    # Extract circuit info for current.json container
+    circuit = active_race_meta.get('Circuit', {})
+    circuit_info = {
+        'circuitId': circuit.get('circuitId'),
+        'circuitName': circuit.get('circuitName'),
+        'locality': circuit.get('Location', {}).get('locality'),
+        'country': circuit.get('Location', {}).get('country')
+    }
+
+    # 2. Try fetching Qualifying directly from Jolpica API (JSON is rock-solid)
+    qual_data = fetch_json_safely(session, f'{JOLPICA}/{SEASON}/{active_round}/qualifying.json')
+    qual_results = []
+    try:
+        qual_results = qual_data.get('RaceTable', {}).get('Races', [])[0].get('QualifyingResults', [])
+    except (IndexError, AttributeError):
+        pass
+
+    current_rows = []
+
+    if qual_results:
+        logging.info('Loaded qualifying data from Jolpica API for round %s', active_round)
+        for q in qual_results:
+            d_info = q.get('Driver', {})
+            c_info = q.get('Constructor', {})
+            d_id = d_info.get('driverId', '')
+            raw_dname = f"{d_info.get('givenName', '')} {d_info.get('familyName', '')}".strip()
+            
+            driver_name = get_standardized_name(d_id, raw_dname)
+            team_name = get_standardized_team(c_info.get('name', ''))
+            qual_pos = q.get('position')
+            
+            current_rows.append({
+                'driver': driver_name,
+                'team': team_name,
+                'grid': qual_pos, # fallback grid to qualifying pos if grid isn't set yet
+                'pos': qual_pos,
+                'no': q.get('number'),
+                'qualy': qual_pos,
+                'q1': q.get('Q1'),
+                'q2': q.get('Q2'),
+                'q3': q.get('Q3')
+            })
+    else:
+        # Fallback to F1.com HTML parsing if Jolpica doesn't have it yet
+        logging.info('Jolpica qualifying not ready; attempting F1.com scrape fallback...')
+        # Map race name to F1 URL slug
+        race_name_lower = active_race_meta.get('raceName', '').lower()
+        slug_match = next((v for k, v in RACE_URLS.items() if k in race_name_lower), (1279, 'australia'))
+        base_url = f'{F1_BASE}/{slug_match[0]}/{slug_match[1]}/qualifying'
+        
+        try:
+            r_f1 = session.get(base_url, timeout=TIMEOUT)
+            soup = BeautifulSoup(r_f1.text, 'html.parser')
+            table = soup.select_one('#results-table table') or soup.find('table')
+            if table:
+                for tr in table.select('tbody tr'):
+                    cells = [clean(td.get_text()) for td in tr.find_all('td', recursive=False)]
+                    if len(cells) >= 4:
+                        current_rows.append({
+                            'driver': get_standardized_name('', cells[2] if len(cells) > 2 else ''),
+                            'team': get_standardized_team(cells[3] if len(cells) > 3 else ''),
+                            'grid': cells[0],
+                            'pos': cells[0],
+                            'qualy': cells[0]
+                        })
+        except Exception as e:
+            logging.error('F1.com scraping fallback failed: %s', e)
 
     payload = {
         'generated_at_utc': now.isoformat(),
+        'round': active_round,
+        'race_name': active_race_meta.get('raceName'),
         'circuit': circuit_info,
-        'drivers': [] # Populated with driver rows, grid, qualy, pos, etc.
+        'drivers': current_rows
     }
     
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(CURRENT_OUTPUT, payload)
-    print(f"Wrote active race session data to {CURRENT_OUTPUT}")
+    logging.info('Successfully updated %s with %d driver entries.', CURRENT_OUTPUT, len(current_rows))
 
 if __name__ == '__main__':
     main()
