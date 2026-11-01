@@ -4,7 +4,7 @@
   "race_name": "Mexico City Grand Prix",
   "date": "2026-11-01",
   "time": "20:00:00Z",
-  "updated_at_utc": "2026-11-01T15:35:07.388729+00:00",
+  "updated_at_utc": "2026-11-01T19:53:40.796632+00:00",
   "drivers": [
     {
       "driverName": "Lewis Hamilton",
@@ -315,7 +315,7 @@
     {
       "driverName": "Ryo Hirakawa",
       "driverId": "ryo_hirakawa",
-      "code": "RYO",
+      "code": "HIR",
       "constructorId": "haas",
       "constructorName": "Haas F1 Team",
       "no": "50",
