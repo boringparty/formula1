@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch current/upcoming F1 session details, results, qualifying, and standings from Jolpica."""
+"""Fetch current F1 session details, results, grid positions, qualifying, and standings from Jolpica."""
 from __future__ import annotations
 import json, os
 from datetime import datetime, timezone, date
@@ -56,17 +56,24 @@ def main():
     
     print(f"Targeting Round {round_no}: {race_name}")
 
-    # 1. Fetch Official Race Results (if complete)
+    # 1. Fetch Official Race Results & Grid Positions
     res_data = safe_get(session, f'{JOLPICA}/{SEASON}/{round_no}/results.json')
     res_races = res_data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
     results_list = res_races[0].get('Results', []) if res_races else []
 
     formatted_results = []
+    starting_grid = []
+
     for res in results_list:
         driver = res.get('Driver', {})
         constructor = res.get('Constructor', {})
+        
+        position = res.get('position')
+        grid_pos = res.get('grid')
+        
         formatted_results.append({
-            'position': res.get('position'),
+            'position': position,
+            'grid': grid_pos,
             'driverId': driver.get('driverId'),
             'code': driver.get('code'),
             'driverName': f"{driver.get('givenName', '')} {driver.get('familyName', '')}".strip(),
@@ -78,7 +85,7 @@ def main():
             'points': res.get('points', '0')
         })
 
-    # 2. Fetch Qualifying Classification
+    # 2. Fetch Qualifying Classification (Fallback for starting grid if race is pending)
     qual_data = safe_get(session, f'{JOLPICA}/{SEASON}/{round_no}/qualifying.json')
     qual_races = qual_data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
     qual_list = qual_races[0].get('QualifyingResults', []) if qual_races else []
@@ -87,8 +94,10 @@ def main():
     for q in qual_list:
         driver = q.get('Driver', {})
         constructor = q.get('Constructor', {})
+        q_pos = q.get('position')
+
         formatted_qualifying.append({
-            'position': q.get('position'),
+            'position': q_pos,
             'driverId': driver.get('driverId'),
             'code': driver.get('code'),
             'driverName': f"{driver.get('givenName', '')} {driver.get('familyName', '')}".strip(),
@@ -98,6 +107,33 @@ def main():
             'q2': q.get('Q2', ''),
             'q3': q.get('Q3', '')
         })
+
+    # Construct explicit starting grid list
+    if formatted_results:
+        # Sort by starting grid position
+        grid_sorted = sorted([r for r in formatted_results if r.get('grid')], key=lambda x: int(x['grid']))
+        starting_grid = [
+            {
+                'grid_position': item['grid'],
+                'driverId': item['driverId'],
+                'code': item['code'],
+                'driverName': item['driverName'],
+                'constructorId': item['constructorId'],
+                'constructorName': item['constructorName']
+            } for item in grid_sorted
+        ]
+    elif formatted_qualifying:
+        # Fallback to qualifying results if race grid hasn't set officially
+        starting_grid = [
+            {
+                'grid_position': item['position'],
+                'driverId': item['driverId'],
+                'code': item['code'],
+                'driverName': item['driverName'],
+                'constructorId': item['constructorId'],
+                'constructorName': item['constructorName']
+            } for item in formatted_qualifying
+        ]
 
     # 3. Fetch Driver Standings
     d_stand_data = safe_get(session, f'{JOLPICA}/{SEASON}/driverstandings.json')
@@ -142,6 +178,7 @@ def main():
         'date': target_race.get('date'),
         'time': target_race.get('time'),
         'updated_at_utc': datetime.now(timezone.utc).isoformat(),
+        'starting_grid': starting_grid,
         'race_results': formatted_results,
         'qualifying_results': formatted_qualifying,
         'driver_standings': driver_standings,
@@ -150,7 +187,7 @@ def main():
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f"Successfully generated {OUTPUT} for Round {round_no}.")
+    print(f"Successfully generated {OUTPUT} for Round {round_no} with starting grid data.")
 
 if __name__ == '__main__':
     main()
