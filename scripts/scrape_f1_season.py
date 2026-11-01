@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/init/env python3
 """Build one season JSON document from Jolpica and Formula1.com."""
 from __future__ import annotations
 import argparse, json, logging, math, os, re, time
@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SEASON = int(os.getenv('F1_SEASON', '2026'))
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
+OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', str(REPO_ROOT / 'season.json')))
 CURRENT_OUTPUT = Path(os.getenv('F1_CURRENT_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
 CALENDAR_URL = os.getenv('F1_CALENDAR_URL', 'https://files-f1.motorsportcalendars.com/f1-calendar_p1_p2_p3_qualifying_sprint_gp.ics')
 JOLPICA = 'https://api.jolpi.ca/ergast/f1'
@@ -456,7 +456,7 @@ def main(argv=None):
     global SEASON, OUTPUT, CURRENT_OUTPUT, F1_BASE, FORCE, SKIP_ROUND_DETAILS, RACE_FILTER
     parser = argparse.ArgumentParser(description='Collect F1 season data into one JSON file.')
     parser.add_argument('--season', type=int, default=SEASON, help='season year (default: %(default)s)')
-    parser.add_argument('--output', type=Path, default=OUTPUT, help='full current-season JSON path (default: %(default)s)')
+    parser.add_argument('--output', type=Path, default=OUTPUT, help='full season JSON path (default: %(default)s)')
     parser.add_argument('--current-output', type=Path, default=CURRENT_OUTPUT, help='latest selected Grand Prix JSON path (default: %(default)s)')
     parser.add_argument('--force', action='store_true', help='scrape the latest Grand Prix outside the automatic window')
     parser.add_argument('--race', help='select a Grand Prix by name, e.g. Mexico Grand Prix')
@@ -478,6 +478,8 @@ def main(argv=None):
         LOG.info('Outside the active weekend window; no data-source requests made.')
         return 0
     LOG.info('Selected race: %s at %s',event['summary'],event['start_utc'].isoformat())
+    
+    # 1. Build Full Season Document (season.json)
     document={'schema_version':1,'season':SEASON,'generated_at_utc':now.isoformat(),'race_window':{'calendar_event':event['summary'],'scheduled_start_utc':event['start_utc'].isoformat(),'opens_utc':(event['start_utc'] - WEEKEND_START_BEFORE).isoformat(),'closes_utc':(event['start_utc']+CUTOFF_AFTER).isoformat(),'forced':FORCE},'sources':{}}
     try: document['sources']['jolpica']=fetch_jolpica_season(session)
     except Exception as e: document['sources']['jolpica']={'error':f'{type(e).__name__}: {e}'}; LOG.exception('Jolpica fetch failed')
@@ -577,17 +579,19 @@ def main(argv=None):
         }
         
     attach_fastest_laps_to_formula1_rows(document['sources'].get('formula1_com', {}), race_results)
+    
+    # Write Full Season Archive to season.json
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    write_json(OUTPUT,document)
-    LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
+    write_json(OUTPUT, document)
+    LOG.info('Wrote full season JSON archive: %s (%d bytes)', OUTPUT, OUTPUT.stat().st_size)
 
+    # 2. Build Compact Current Race Array (current.json)
     f1_source = document.get('sources', {}).get('formula1_com', {})
     f1_result = f1_source.get('race_results', {}) if isinstance(f1_source, dict) else {}
     f1_starting_grid = f1_source.get('starting_grid', {}) if isinstance(f1_source, dict) else {}
     jol_race = document.get('current_race', {})
     jol_qual = jol_race.get('qualifying', {}) if isinstance(jol_race, dict) else {}
     
-    # Map scraped starting grid by driver number and normalized name
     grid_map_num = {}
     grid_map_name = {}
     if isinstance(f1_starting_grid, dict) and f1_starting_grid.get('rows'):
@@ -663,6 +667,7 @@ def main(argv=None):
                 'q3': row.get('q3'),
             })
 
+    # Write Compact Active Weekend Data to current.json
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(CURRENT_OUTPUT, current_rows)
     LOG.info('Wrote compact latest-race driver rows: %s (%d bytes)', CURRENT_OUTPUT, CURRENT_OUTPUT.stat().st_size)
