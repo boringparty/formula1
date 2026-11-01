@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Fetch current F1 session data safely, handling uncompleted or upcoming races."""
+"""Fetch current or next F1 session data accurately by scanning the 2026 calendar dates."""
 from __future__ import annotations
 import json, os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from pathlib import Path
 import requests
 
@@ -18,25 +18,38 @@ def main():
     session = requests.Session()
     session.headers.update(HEADERS)
     
-    print(f"Fetching {SEASON} current round schedule from Jolpica...")
+    print(f"Fetching {SEASON} full season calendar from Jolpica...")
     try:
-        # Get next/current round info
-        url = f'{JOLPICA}/{SEASON}/current.json'
+        url = f'{JOLPICA}/{SEASON}.json'
         r = session.get(url, timeout=TIMEOUT)
         data = r.json()
-        race_table = data.get('MRData', {}).get('RaceTable', {})
-        races = race_table.get('Races', [])
+        races = data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
         
         if not races:
-            print("No active/upcoming races found for current endpoint.")
+            print("Error: Could not retrieve races for the season.")
             return
 
-        current_race = races[0]
-        round_no = current_race.get('round')
-        race_name = current_race.get('raceName')
-        print(f"Targeting Round {round_no}: {race_name}")
+        today = date.today()
+        target_race = None
 
-        # Try fetching results for this round, but handle empty results gracefully
+        # Find the first race whose date is today or in the future
+        for race in races:
+            race_date_str = race.get('date')
+            if race_date_str:
+                r_date = datetime.strptime(race_date_str, '%Y-%m-%d').date()
+                if r_date >= today:
+                    target_race = race
+                    break
+        
+        # If all races for the year have passed, default to the final round
+        if not target_race and races:
+            target_race = races[-1]
+
+        round_no = target_race.get('round')
+        race_name = target_race.get('raceName')
+        print(f"Targeting Round {round_no}: {race_name} (Date: {target_race.get('date')})")
+
+        # Try fetching results for this round safely
         results_url = f'{JOLPICA}/{SEASON}/{round_no}/results.json'
         res_r = session.get(results_url, timeout=TIMEOUT)
         res_data = res_r.json()
@@ -65,8 +78,8 @@ def main():
             'season': SEASON,
             'round': round_no,
             'race_name': race_name,
-            'date': current_race.get('date'),
-            'time': current_race.get('time'),
+            'date': target_race.get('date'),
+            'time': target_race.get('time'),
             'updated_at_utc': datetime.now(timezone.utc).isoformat(),
             'results': formatted_results
         }
