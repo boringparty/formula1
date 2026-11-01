@@ -6,7 +6,185 @@
   "circuit_name": "Autódromo Hermanos Rodríguez",
   "date": "2026-11-01",
   "time": "20:00:00Z",
-  "updated_at_utc": "2026-11-01T09:37:25.969712+00:00",
+  "updated_at_utc": "2026-11-01T09:39:45.772181+00:00",
+  "starting_grid": [
+    {
+      "grid_position": "1",
+      "driverId": "hamilton",
+      "code": "HAM",
+      "driverName": "Lewis Hamilton",
+      "constructorId": "ferrari",
+      "constructorName": "Ferrari"
+    },
+    {
+      "grid_position": "2",
+      "driverId": "russell",
+      "code": "RUS",
+      "driverName": "George Russell",
+      "constructorId": "mercedes",
+      "constructorName": "Mercedes"
+    },
+    {
+      "grid_position": "3",
+      "driverId": "leclerc",
+      "code": "LEC",
+      "driverName": "Charles Leclerc",
+      "constructorId": "ferrari",
+      "constructorName": "Ferrari"
+    },
+    {
+      "grid_position": "4",
+      "driverId": "max_verstappen",
+      "code": "VER",
+      "driverName": "Max Verstappen",
+      "constructorId": "red_bull",
+      "constructorName": "Red Bull"
+    },
+    {
+      "grid_position": "5",
+      "driverId": "antonelli",
+      "code": "ANT",
+      "driverName": "Andrea Kimi Antonelli",
+      "constructorId": "mercedes",
+      "constructorName": "Mercedes"
+    },
+    {
+      "grid_position": "6",
+      "driverId": "norris",
+      "code": "NOR",
+      "driverName": "Lando Norris",
+      "constructorId": "mclaren",
+      "constructorName": "McLaren"
+    },
+    {
+      "grid_position": "7",
+      "driverId": "hadjar",
+      "code": "HAD",
+      "driverName": "Isack Hadjar",
+      "constructorId": "red_bull",
+      "constructorName": "Red Bull"
+    },
+    {
+      "grid_position": "8",
+      "driverId": "arvid_lindblad",
+      "code": "LIN",
+      "driverName": "Arvid Lindblad",
+      "constructorId": "rb",
+      "constructorName": "RB F1 Team"
+    },
+    {
+      "grid_position": "8",
+      "driverId": "lawson",
+      "code": "LAW",
+      "driverName": "Liam Lawson",
+      "constructorId": "rb",
+      "constructorName": "RB F1 Team"
+    },
+    {
+      "grid_position": "9",
+      "driverId": "gasly",
+      "code": "GAS",
+      "driverName": "Pierre Gasly",
+      "constructorId": "alpine",
+      "constructorName": "Alpine F1 Team"
+    },
+    {
+      "grid_position": "10",
+      "driverId": "hulkenberg",
+      "code": "HUL",
+      "driverName": "Nico Hülkenberg",
+      "constructorId": "audi",
+      "constructorName": "Audi"
+    },
+    {
+      "grid_position": "11",
+      "driverId": "colapinto",
+      "code": "COL",
+      "driverName": "Franco Colapinto",
+      "constructorId": "alpine",
+      "constructorName": "Alpine F1 Team"
+    },
+    {
+      "grid_position": "12",
+      "driverId": "piastri",
+      "code": "PIA",
+      "driverName": "Oscar Piastri",
+      "constructorId": "mclaren",
+      "constructorName": "McLaren"
+    },
+    {
+      "grid_position": "13",
+      "driverId": "bortoleto",
+      "code": "BOR",
+      "driverName": "Gabriel Bortoleto",
+      "constructorId": "audi",
+      "constructorName": "Audi"
+    },
+    {
+      "grid_position": "14",
+      "driverId": "bearman",
+      "code": "BEA",
+      "driverName": "Oliver Bearman",
+      "constructorId": "haas",
+      "constructorName": "Haas F1 Team"
+    },
+    {
+      "grid_position": "15",
+      "driverId": "sainz",
+      "code": "SAI",
+      "driverName": "Carlos Sainz",
+      "constructorId": "williams",
+      "constructorName": "Williams"
+    },
+    {
+      "grid_position": "16",
+      "driverId": "albon",
+      "code": "ALB",
+      "driverName": "Alexander Albon",
+      "constructorId": "williams",
+      "constructorName": "Williams"
+    },
+    {
+      "grid_position": "17",
+      "driverId": "alonso",
+      "code": "ALO",
+      "driverName": "Fernando Alonso",
+      "constructorId": "aston_martin",
+      "constructorName": "Aston Martin"
+    },
+    {
+      "grid_position": "18",
+      "driverId": "ryo_hirakawa",
+      "code": null,
+      "driverName": "Ryo Hirakawa",
+      "constructorId": "haas",
+      "constructorName": "Haas F1 Team"
+    },
+    {
+      "grid_position": "19",
+      "driverId": "stroll",
+      "code": "STR",
+      "driverName": "Lance Stroll",
+      "constructorId": "aston_martin",
+      "constructorName": "Aston Martin"
+    },
+    {
+      "grid_position": "20",
+      "driverId": "perez",
+      "code": "PER",
+      "driverName": "Sergio Pérez",
+      "constructorId": "cadillac",
+      "constructorName": "Cadillac F1 Team"
+    },
+    {
+      "grid_position": "21",
+      "driverId": "bottas",
+      "code": "BOT",
+      "driverName": "Valtteri Bottas",
+      "constructorId": "cadillac",
+      "constructorName": "Cadillac F1 Team"
+    }
+  ],
   "race_results": [],
   "qualifying_results": [
     {
