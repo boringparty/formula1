@@ -46,10 +46,9 @@ def fetch_json(url):
     return {}
 
 def scrape_official_f1_grid(season: int, race_slug: str) -> dict[str, str]:
-    """Strictly scrapes starting grid positions directly from formula1.com."""
+    """Strictly scrapes starting grid positions directly from formula1.com results table."""
     grid_map = {}
     
-    # Try multiple standard slug formats used by formula1.com
     slugs_to_try = [
         race_slug,
         race_slug.replace('-grand-prix', ''),
@@ -65,25 +64,42 @@ def scrape_official_f1_grid(season: int, race_slug: str) -> dict[str, str]:
                 continue
 
             soup = BeautifulSoup(r.text, 'html.parser')
-            
-            # Find the main data table or rows
-            rows = soup.find_all('tr')
+            table = soup.find('table')
+            if not table:
+                continue
+
+            rows = table.find_all('tr')
             for row in rows:
                 cols = [clean(c.text) for c in row.find_all(['td', 'th'])]
-                if not cols or not cols[0].isdigit():
+                if len(cols) < 3:
                     continue
 
-                grid_pos = cols[0]
+                # F1 results table format: [Position, Car No, Driver Name/Code, Constructor, Time, ...]
+                pos_candidate = cols[0]
+                if not pos_candidate.isdigit():
+                    continue
+
+                grid_pos = pos_candidate
                 row_text = norm(' '.join(cols))
 
                 # Match row against known drivers using normalized IDs, numbers, or last names
+                matched = False
                 for d_id, std_name in DRIVER_NAME_MAP.items():
                     last_name = norm(std_name.split()[-1])
                     if last_name in row_text or norm(d_id) in row_text:
                         grid_map[d_id] = grid_pos
+                        matched = True
                         break
+                
+                # Fallback: if name didn't match cleanly, check standard F1 three-letter code
+                if not matched:
+                    for d_id, std_name in DRIVER_NAME_MAP.items():
+                        code = d_id[:3].lower()
+                        if code in row_text:
+                            grid_map[d_id] = grid_pos
+                            break
 
-            if grid_map:
+            if len(grid_map) >= 15:
                 logging.info("Successfully extracted %d driver grid positions from formula1.com", len(grid_map))
                 break
 
