@@ -1,6 +1,6 @@
 {
   "season": 2026,
-  "updated_at_utc": "2026-11-01T09:10:50.936218+00:00",
+  "updated_at_utc": "2026-11-01T09:14:29.508119+00:00",
   "drivers": [
     {
       "code": "ALB",
@@ -8,7 +8,7 @@
       "driverId": "albon",
       "permanentNumber": "23",
       "nationality": "Thai",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/alb.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/alexander-albon01.webp"
     },
     {
       "code": "ALO",
@@ -16,7 +16,7 @@
       "driverId": "alonso",
       "permanentNumber": "14",
       "nationality": "Spanish",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/alo.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/fernando-alonso01.webp"
     },
     {
       "code": "ANT",
@@ -24,7 +24,7 @@
       "driverId": "antonelli",
       "permanentNumber": "12",
       "nationality": "Italian",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/ant.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/kimi-antonelli01.webp"
     },
     {
       "code": "ARO",
@@ -32,7 +32,7 @@
       "driverId": "paul_aron",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/aro.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/paul-aron.webp"
     },
     {
       "code": "BEA",
@@ -40,7 +40,7 @@
       "driverId": "bearman",
       "permanentNumber": "87",
       "nationality": "British",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/bea.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/oliver-bearman01.webp"
     },
     {
       "code": "BEG",
@@ -48,7 +48,7 @@
       "driverId": "dino_beganovic",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/beg.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/dino-beganovic.webp"
     },
     {
       "code": "BOR",
@@ -56,7 +56,7 @@
       "driverId": "bortoleto",
       "permanentNumber": "5",
       "nationality": "Brazilian",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/bor.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/gabriel-bortoleto01.webp"
     },
     {
       "code": "BOT",
@@ -64,7 +64,7 @@
       "driverId": "bottas",
       "permanentNumber": "77",
       "nationality": "Finnish",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/bot.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/valtteri-bottas01.webp"
     },
     {
       "code": "BRO",
@@ -72,7 +72,7 @@
       "driverId": "luke_browning",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/bro.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/luke-browning.webp"
     },
     {
       "code": "COL",
@@ -80,7 +80,7 @@
       "driverId": "colapinto",
       "permanentNumber": "43",
       "nationality": "Argentine",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/col.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/franco-colapinto01.webp"
     },
     {
       "code": "CRA",
@@ -88,7 +88,7 @@
       "driverId": "jak_crawford",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/cra.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/jak-crawford.webp"
     },
     {
       "code": "FOR",
@@ -96,7 +96,7 @@
       "driverId": "leonardo_fornaroli",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/for.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/leonardo-fornaroli.webp"
     },
     {
       "code": "GAS",
@@ -104,7 +104,7 @@
       "driverId": "gasly",
       "permanentNumber": "10",
       "nationality": "French",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/gas.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/pierre-gasly01.webp"
     },
     {
       "code": "HAD",
@@ -112,7 +112,7 @@
       "driverId": "hadjar",
       "permanentNumber": "6",
       "nationality": "French",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/had.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/isack-hadjar01.webp"
     },
     {
       "code": "HAM",
@@ -120,7 +120,7 @@
       "driverId": "hamilton",
       "permanentNumber": "44",
       "nationality": "British",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/ham.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/lewis-hamilton01.webp"
     },
     {
       "code": "HER",
@@ -128,7 +128,7 @@
       "driverId": "colton_herta",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/her.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/colton-herta.webp"
     },
     {
       "code": "HIR",
@@ -136,7 +136,7 @@
       "driverId": "ryo_hirakawa",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/hir.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/ryo-hirakawa.webp"
     },
     {
       "code": "HUL",
@@ -144,7 +144,7 @@
       "driverId": "hulkenberg",
       "permanentNumber": "27",
       "nationality": "German",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/hul.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/nico-hulkenberg01.webp"
     },
     {
       "code": "IWA",
@@ -152,7 +152,7 @@
       "driverId": "ayumu_iwasa",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/iwa.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/ayumu-iwasa.webp"
     },
     {
       "code": "LAW",
@@ -160,7 +160,7 @@
       "driverId": "lawson",
       "permanentNumber": "30",
       "nationality": "New Zealander",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/law.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/liam-lawson01.webp"
     },
     {
       "code": "LEC",
@@ -168,7 +168,7 @@
       "driverId": "leclerc",
       "permanentNumber": "16",
       "nationality": "Monegasque",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/lec.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/charles-leclerc01.webp"
     },
     {
       "code": "LIN",
@@ -176,7 +176,7 @@
       "driverId": "arvid_lindblad",
       "permanentNumber": "41",
       "nationality": "British",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/lin.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/arvid-lindblad.webp"
     },
     {
       "code": "MIN",
@@ -184,7 +184,7 @@
       "driverId": "gabriele_mini",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/min.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/gabriele-mini.webp"
     },
     {
       "code": "NOR",
@@ -192,7 +192,7 @@
       "driverId": "norris",
       "permanentNumber": "1",
       "nationality": "British",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/nor.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/lando-norris01.webp"
     },
     {
       "code": "OCO",
@@ -200,7 +200,7 @@
       "driverId": "ocon",
       "permanentNumber": "31",
       "nationality": "French",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/oco.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/esteban-ocon01.webp"
     },
     {
       "code": "PIA",
@@ -208,7 +208,7 @@
       "driverId": "piastri",
       "permanentNumber": "81",
       "nationality": "Australian",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/pia.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/oscar-piastri01.webp"
     },
     {
       "code": "PER",
@@ -216,7 +216,7 @@
       "driverId": "perez",
       "permanentNumber": "11",
       "nationality": "Mexican",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/per.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/sergio-perez01.webp"
     },
     {
       "code": "RUS",
@@ -224,7 +224,7 @@
       "driverId": "russell",
       "permanentNumber": "63",
       "nationality": "British",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/rus.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/george-russell01.webp"
     },
     {
       "code": "SAI",
@@ -232,7 +232,7 @@
       "driverId": "sainz",
       "permanentNumber": "55",
       "nationality": "Spanish",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/sai.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/carlos-sainz01.webp"
     },
     {
       "code": "SLA",
@@ -240,7 +240,7 @@
       "driverId": "freddie_slater",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/sla.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/freddie-slater.webp"
     },
     {
       "code": "STR",
@@ -248,7 +248,7 @@
       "driverId": "stroll",
       "permanentNumber": "18",
       "nationality": "Canadian",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/str.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/lance-stroll01.webp"
     },
     {
       "code": "TSO",
@@ -256,7 +256,7 @@
       "driverId": "nikola_tsolov",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/tso.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/nikola-tsolov.webp"
     },
     {
       "code": "TSU",
@@ -264,7 +264,7 @@
       "driverId": "tsunoda",
       "permanentNumber": "22",
       "nationality": "Japanese",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/tsu.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/yuki-tsunoda01.webp"
     },
     {
       "code": "VER",
@@ -272,7 +272,7 @@
       "driverId": "max_verstappen",
       "permanentNumber": "3",
       "nationality": "Dutch",
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/ver.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/max-verstappen01.webp"
     },
     {
       "code": "VES",
@@ -280,7 +280,7 @@
       "driverId": "frederik_vesti",
       "permanentNumber": null,
       "nationality": null,
-      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/drivers/ves.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/common/f1/2026/drivers/frederik-vesti.webp"
     }
   ]
 }
