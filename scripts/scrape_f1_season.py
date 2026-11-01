@@ -446,7 +446,7 @@ def main(argv=None):
             '_derived_from': 'Jolpica results fallback (race calendar metadata unavailable)',
         }
         
-    if matched or race_results:
+       if matched or race_results:
         round_no=str((matched or race_results).get('round'))
         if race_results is None:
             race_results=next((r for r in result_races if str(r.get('round'))==round_no and r.get('Results')),None)
@@ -456,18 +456,27 @@ def main(argv=None):
                 race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
             except Exception as exc:
                 LOG.warning('Could not backfill selected-round results for round %s: %s',round_no,exc)
-        document['current_race']={'round':round_no,'race_name':(matched or race_results).get('raceName'),'race_metadata':matched,'results':race_results,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
-    else:
+        
+        # Get qualifying from bulk list, or explicitly fetch round-specific endpoint if missing
+        qual_record = next((r for r in qual_races if str(r.get('round'))==round_no),None)
+        if not qual_record or not qual_record.get('QualifyingResults'):
+            try:
+                qual_payload = fetch_paginated(session, f'{SEASON}/{round_no}/qualifying', 'RaceTable')
+                qual_record = next((r for r in qual_payload.get('data', []) if str(r.get('round')) == round_no and r.get('QualifyingResults')), None)
+                if qual_record:
+                    LOG.info('Loaded round %s qualifying directly from Jolpica round endpoint.', round_no)
+            except Exception as exc:
+                LOG.warning('Could not fetch round-specific qualifying from Jolpica: %s', exc)
+
         document['current_race']={
-            'round':None,
-            'race_name':race_name(event['summary']),
-            'race_metadata':None,
-            'results':None,
-            'qualifying':None,
-            'sprint':None,
-            'pitstops':None,
-            'laps':None,
-            'note':'Jolpica race results were unavailable for this run; Formula1.com classification is retained under sources.formula1_com.'
+            'round':round_no,
+            'race_name':(matched or race_results).get('raceName'),
+            'race_metadata':matched,
+            'results':race_results,
+            'qualifying':qual_record,
+            'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),
+            'pitstops':jol.get('pitstops_by_round',{}).get(round_no),
+            'laps':jol.get('laps_by_round',{}).get(round_no)
         }
         
     attach_fastest_laps_to_formula1_rows(document['sources'].get('formula1_com', {}), race_results)
