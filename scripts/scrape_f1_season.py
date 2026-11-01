@@ -37,8 +37,56 @@ RACE_URLS = {
  'azerbaijan':(1295,'azerbaijan'),'singapore':(1296,'singapore'),'united states':(1297,'united-states'),'usa':(1297,'united-states'),
  'mexico':(1298,'mexico'),'brazil':(1299,'brazil'),'sao paulo':(1299,'brazil'),'las vegas':(1300,'las-vegas'),'qatar':(1301,'qatar'),'abu dhabi':(1302,'abu-dhabi')}
 
+# Standardized preferred names mapping
+DRIVER_NAME_MAP = {
+    'hamilton': 'Lewis Hamilton',
+    'russell': 'George Russell',
+    'leclerc': 'Charles Leclerc',
+    'max_verstappen': 'Max Verstappen',
+    'antonelli': 'Kimi Antonelli',
+    'norris': 'Lando Norris',
+    'hadjar': 'Isack Hadjar',
+    'arvid_lindblad': 'Arvid Lindblad',
+    'lawson': 'Liam Lawson',
+    'gasly': 'Pierre Gasly',
+    'hulkenberg': 'Nico Hulkenberg',
+    'colapinto': 'Franco Colapinto',
+    'piastri': 'Oscar Piastri',
+    'bortoleto': 'Gabriel Bortoleto',
+    'bearman': 'Oliver Bearman',
+    'sainz': 'Carlos Sainz',
+    'albon': 'Alexander Albon',
+    'alonso': 'Fernando Alonso',
+    'ryo_hirakawa': 'Ryo Hirakawa',
+    'stroll': 'Lance Stroll',
+    'perez': 'Sergio Perez',
+    'bottas': 'Valtteri Bottas'
+}
+
 def clean(s): return re.sub(r'\s+',' ',str(s or '')).strip()
 def norm(s): return re.sub(r'[^a-z0-9 ]+',' ',clean(s).lower()).strip()
+
+def get_standardized_name(driver_id: str, raw_name: str) -> str:
+    """Return standardized driver name using DRIVER_NAME_MAP or fall back to cleaned raw name."""
+    if driver_id and driver_id in DRIVER_NAME_MAP:
+        return DRIVER_NAME_MAP[driver_id]
+    
+    # Fallback normalization matching check against normalized map keys or raw names
+    norm_raw = norm(raw_name)
+    for key, pref_name in DRIVER_NAME_MAP.items():
+        if key.replace('_', ' ') in norm_raw or norm(pref_name) == norm_raw:
+            return pref_name
+            
+    # Default cleanup (strip accents if possible or clean up spaces)
+    cleaned = clean(raw_name)
+    if cleaned == 'Andrea Kimi Antonelli':
+        return 'Kimi Antonelli'
+    if cleaned == 'Nico Hülkenberg':
+        return 'Nico Hulkenberg'
+    if cleaned == 'Sergio Pérez':
+        return 'Sergio Perez'
+    return cleaned
+
 def plain(v):
     if v is None: return None
     if isinstance(v, dict): return {str(k):plain(x) for k,x in v.items()}
@@ -148,7 +196,9 @@ def extract_fastest_laps(race_record):
         if not lap_time:
             continue
         driver = result.get('Driver') or {}
-        name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
+        d_id = driver.get('driverId', '')
+        raw_name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
+        name = get_standardized_name(d_id, raw_name)
         if name:
             rows.append({'driver': name, 'fastest_lap': lap_time})
     return rows
@@ -281,7 +331,8 @@ def parse_f1_table(html):
         for i,c in enumerate(cells):
             if i<len(headers) and headers[i]=='driver':
                 a=c.select_one('span.max-lg\\:hidden'); b=c.select_one('span.max-md\\:hidden')
-                vals.append(clean((a.get_text(' ',strip=True) if a else '')+' '+(b.get_text(' ',strip=True) if b else '')) or clean(c.get_text(' ',strip=True)))
+                raw_d = clean((a.get_text(' ',strip=True) if a else '')+' '+(b.get_text(' ',strip=True) if b else '')) or clean(c.get_text(' ',strip=True))
+                vals.append(get_standardized_name('', raw_d))
             else: vals.append(clean(c.get_text(' ',strip=True)))
         if not any(vals):continue
         row={ (headers[i].replace(' / ','_').replace(' ','_').replace('-','_') if i<len(headers) and headers[i] else f'column_{i+1}'):v for i,v in enumerate(vals)}
@@ -307,15 +358,20 @@ def attach_fastest_laps_to_formula1_rows(formula1_source, jolpica_race):
         if not isinstance(result, dict):
             continue
         driver = result.get('Driver') or {}
+        d_id = driver.get('driverId', '')
+        raw_name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
+        std_name = get_standardized_name(d_id, raw_name)
+        
         fastest = result.get('FastestLap') or {}
         lap_time = fastest.get('Time') or {}
         lap_time = lap_time.get('time') if isinstance(lap_time, dict) else lap_time
         if not lap_time:
             continue
-        driver = result.get('Driver') or {}
-        name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
-        if name:
-            by_name[name] = lap_time or None
+        number = clean(driver.get('permanentNumber') or driver.get('number'))
+        if number:
+            by_number[number] = lap_time or None
+        if std_name:
+            by_name[norm(std_name)] = lap_time or None
     for row in result_table['rows']:
         number = clean(row.get('driver_number') or row.get('no'))
         driver_name = norm(row.get('driver') or row.get('name'))
@@ -513,18 +569,18 @@ def main(argv=None):
 
     current_rows = []
 
-    # Priority 1: Jolpica QualifyingResults (qualy set to final position)
+    # Priority 1: Jolpica QualifyingResults (standardized driver names & qualy position)
     if jol_qual and isinstance(jol_qual.get('QualifyingResults'), list) and jol_qual['QualifyingResults']:
         for q in jol_qual['QualifyingResults']:
             driver_info = q.get('Driver', {})
             constructor = q.get('Constructor', {})
-            given = driver_info.get('givenName', '')
-            family = driver_info.get('familyName', '')
-            driver_name = f"{given} {family}".strip()
+            d_id = driver_info.get('driverId', '')
+            raw_name = f"{driver_info.get('givenName', '')} {driver_info.get('familyName', '')}".strip()
+            driver_name = get_standardized_name(d_id, raw_name)
+            
             num = str(q.get('number', '')).strip()
             dname_norm = norm(driver_name)
             
-            # Scraped grid position from Formula1.com /starting-grid
             scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname_norm) or q.get('position')
             qual_position = q.get('position')
             
@@ -543,13 +599,16 @@ def main(argv=None):
     # Priority 2: Formula1.com race or starting grid fallback
     elif isinstance(f1_result, dict) and f1_result.get('rows'):
         for row in f1_result.get('rows', []):
+            raw_dname = row.get('driver') or row.get('name') or ''
+            driver_name = get_standardized_name('', raw_dname)
+            
             num = str(row.get('no') or row.get('driver_number') or '').strip()
-            dname = norm(row.get('driver') or row.get('name') or '')
+            dname = norm(driver_name)
             scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname) or row.get('grid') or row.get('pos')
             qual_position = row.get('pos') or row.get('position')
             
             current_rows.append({
-                'driver': row.get('driver') or row.get('name'),
+                'driver': driver_name,
                 'team': row.get('team') or row.get('car'),
                 'grid': scraped_grid,
                 'pos': qual_position,
