@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build operational current.json for active race sessions with official F1 starting grid scraping."""
+"""Build operational current.json by strictly fetching the starting grid from formula1.com."""
 from __future__ import annotations
 import json, os, re, logging
 from datetime import datetime, timezone, date
@@ -29,10 +29,10 @@ TEAM_NAME_MAP = {
 }
 
 TIMEOUT = 30
-HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
+HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
 
 def clean(s): return re.sub(r'\s+', ' ', str(s or '')).strip()
-def norm(s): return re.sub(r'[^a-z0-9 ]+', ' ', clean(s).lower()).strip()
+def norm(s): return re.sub(r'[^a-z0-9]+', '', clean(s).lower()).strip()
 def get_std_name(d_id, raw): return DRIVER_NAME_MAP.get(d_id, clean(raw))
 def get_std_team(raw): return TEAM_NAME_MAP.get(norm(raw), clean(raw))
 
@@ -41,34 +41,55 @@ def fetch_json(url):
         r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         if r.status_code == 200:
             return r.json().get('MRData', {})
-    except Exception:
-        pass
+    except Exception as e:
+        logging.warning("Error fetching %s: %s", url, e)
     return {}
 
-def scrape_f1_starting_grid(season: int, race_slug: str) -> dict[str, str]:
-    """Scrapes official F1 starting grid page to capture penalties/disqualifications."""
+def scrape_official_f1_grid(season: int, race_slug: str) -> dict[str, str]:
+    """Strictly scrapes starting grid positions directly from formula1.com."""
     grid_map = {}
-    url = f"https://www.formula1.com/en/results/{season}/races/{race_slug}/starting-grid"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        if r.status_code == 200:
+    
+    # Try multiple standard slug formats used by formula1.com
+    slugs_to_try = [
+        race_slug,
+        race_slug.replace('-grand-prix', ''),
+        race_slug.replace('grand-prix', '').strip('-')
+    ]
+    
+    for slug in set(slugs_to_try):
+        url = f"https://www.formula1.com/en/results/{season}/races/{slug}/starting-grid"
+        logging.info("Scraping official starting grid from: %s", url)
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            if r.status_code != 200:
+                continue
+
             soup = BeautifulSoup(r.text, 'html.parser')
-            table = soup.find('table')
-            if table:
-                rows = table.find_all('tr')
-                for row in rows[1:]:
-                    cols = [clean(c.text) for c in row.find_all('td')]
-                    if len(cols) >= 3:
-                        pos = cols[0]
-                        driver_raw = cols[2] if len(cols) > 2 else cols[1]
-                        if pos.isdigit():
-                            # Extract last name or code matching
-                            for d_id, std_name in DRIVER_NAME_MAP.items():
-                                if norm(d_id) in norm(driver_raw) or norm(std_name.split()[-1]) in norm(driver_raw):
-                                    grid_map[d_id] = pos
-                                    break
-    except Exception as e:
-        logging.warning("Failed to scrape official F1 starting grid page: %s", e)
+            
+            # Find the main data table or rows
+            rows = soup.find_all('tr')
+            for row in rows:
+                cols = [clean(c.text) for c in row.find_all(['td', 'th'])]
+                if not cols or not cols[0].isdigit():
+                    continue
+
+                grid_pos = cols[0]
+                row_text = norm(' '.join(cols))
+
+                # Match row against known drivers using normalized IDs, numbers, or last names
+                for d_id, std_name in DRIVER_NAME_MAP.items():
+                    last_name = norm(std_name.split()[-1])
+                    if last_name in row_text or norm(d_id) in row_text:
+                        grid_map[d_id] = grid_pos
+                        break
+
+            if grid_map:
+                logging.info("Successfully extracted %d driver grid positions from formula1.com", len(grid_map))
+                break
+
+        except Exception as e:
+            logging.warning("Failed scraping %s: %s", url, e)
+
     return grid_map
 
 def main():
@@ -101,7 +122,11 @@ def main():
     race_name = active_meta.get('raceName', '')
     logging.info(f"Targeting Round {active_round}: {race_name}")
 
-    # 2. Fetch Qualifying Classification from API
+    # 2. Strictly Scrape Official F1 Starting Grid
+    slug_part = norm(race_name.replace('Grand Prix', '')).replace(' ', '-')
+    official_grid_map = scrape_official_f1_grid(SEASON, slug_part)
+
+    # 3. Fetch Qualifying Session Data (for Q1/Q2/Q3 times)
     qual_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/qualifying.json')
     qual_races = qual_data.get('RaceTable', {}).get('Races', [])
     qual_results = qual_races[0].get('QualifyingResults', []) if qual_races else []
@@ -117,7 +142,7 @@ def main():
             'number': q.get('number', '')
         }
 
-    # 3. Fetch Race Classification from API
+    # 4. Fetch Race Classification (for completed race data)
     race_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/results.json')
     race_races = race_data.get('RaceTable', {}).get('Races', [])
     race_results = race_races[0].get('Results', []) if race_races else []
@@ -126,7 +151,6 @@ def main():
     for res in race_results:
         d_id = res.get('Driver', {}).get('driverId', '')
         race_map[d_id] = {
-            'grid': res.get('grid', ''),
             'pos': res.get('position', ''),
             'race': res.get('position', ''),
             'laps': res.get('laps', ''),
@@ -135,12 +159,8 @@ def main():
             'number': res.get('number', '')
         }
 
-    # 4. Attempt to scrape Official F1 website starting grid as primary source for 'grid'
-    slug_part = norm(race_name.replace('Grand Prix', '')).replace(' ', '-')
-    official_grid_map = scrape_f1_starting_grid(SEASON, slug_part)
-
-    # 5. Build consolidated driver array
-    all_driver_ids = set(qual_map.keys()).union(set(race_map.keys()))
+    # 5. Build Unified Driver List
+    all_driver_ids = set(qual_map.keys()).union(set(race_map.keys())).union(set(official_grid_map.keys()))
     driver_info_source = qual_results if qual_results else race_results
     driver_metadata = {}
 
@@ -159,7 +179,7 @@ def main():
     combined_drivers = []
     for d_id in all_driver_ids:
         meta = driver_metadata.get(d_id, {
-            'driverName': d_id,
+            'driverName': DRIVER_NAME_MAP.get(d_id, d_id),
             'driverId': d_id,
             'code': d_id[:3].upper(),
             'constructorId': '',
@@ -169,9 +189,8 @@ def main():
         q_info = qual_map.get(d_id, {})
         r_info = race_map.get(d_id, {})
 
-        # Priority for starting grid position:
-        # Official scraped web grid > API race grid position > API qualy position
-        grid_pos = official_grid_map.get(d_id) or r_info.get('grid') or q_info.get('qualy', '')
+        # Grid MUST come strictly from formula1.com official grid map
+        grid_pos = official_grid_map.get(d_id, '')
 
         combined_drivers.append({
             'driverName': meta['driverName'],
@@ -192,9 +211,9 @@ def main():
             'status': r_info.get('status', '')
         })
 
-    # Sort array by official grid position prior to race, or race position after
+    # Sort drivers strictly by official starting grid position (P1 to P22)
     combined_drivers.sort(
-        key=lambda x: int(x['pos']) if x['pos'].isdigit() else (int(x['grid']) if x['grid'].isdigit() else 99)
+        key=lambda x: int(x['grid']) if x['grid'].isdigit() else (int(x['pos']) if x['pos'].isdigit() else 99)
     )
 
     payload = {
@@ -209,7 +228,7 @@ def main():
 
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     CURRENT_OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    logging.info('Successfully generated %s with official grid positions.', CURRENT_OUTPUT)
+    logging.info('Successfully generated %s strictly from formula1.com grid data.', CURRENT_OUTPUT)
 
 if __name__ == '__main__':
     main()
