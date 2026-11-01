@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build current.json for active race sessions with primary Jolpica API fallback for qualifying/grids."""
+"""Build current.json for active race sessions with primary Jolpica API fallback."""
 from __future__ import annotations
 import argparse, json, logging, os, re, time
 from datetime import datetime, timedelta, timezone
@@ -67,20 +67,15 @@ def main():
     session = requests.Session(); session.headers.update(HEADERS)
     now = datetime.now(timezone.utc)
     
-    # 1. Fetch Jolpica season schedule to identify rounds & circuits
+    # 1. Fetch Jolpica season schedule
     sched_data = fetch_json_safely(session, f'{JOLPICA}/{SEASON}.json')
     races_list = sched_data.get('RaceTable', {}).get('Races', [])
     
-    # Determine current/latest round (using a simplified lookup or matching current date)
-    # For active session tracking, we check the most recent or matching round from the schedule
     active_round = None
     active_race_meta = {}
     for r in races_list:
-        # Simple heuristic or datetime check can be plugged here; defaulting to latest/upcoming
-        # Let's check matching round or default to the last race that occurred or is occurring
         active_round = str(r.get('round'))
         active_race_meta = r
-        # Break condition can be refined based on date, but checking upcoming/recent works nicely
         race_date_str = r.get('date', '2026-01-01')
         if datetime.strptime(race_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc) >= now - timedelta(days=3):
             break
@@ -91,7 +86,6 @@ def main():
 
     logging.info('Targeting Round %s: %s', active_round, active_race_meta.get('raceName'))
 
-    # Extract circuit info for current.json container
     circuit = active_race_meta.get('Circuit', {})
     circuit_info = {
         'circuitId': circuit.get('circuitId'),
@@ -100,7 +94,15 @@ def main():
         'country': circuit.get('Location', {}).get('country')
     }
 
-    # 2. Try fetching Qualifying directly from Jolpica API (JSON is rock-solid)
+    # Check for completed Grand Prix Race results
+    race_data = fetch_json_safely(session, f'{JOLPICA}/{SEASON}/{active_round}/results.json')
+    race_results = []
+    try:
+        race_results = race_data.get('RaceTable', {}).get('Races', [])[0].get('Results', [])
+    except (IndexError, AttributeError):
+        pass
+
+    # Check for Qualifying results
     qual_data = fetch_json_safely(session, f'{JOLPICA}/{SEASON}/{active_round}/qualifying.json')
     qual_results = []
     try:
@@ -110,8 +112,41 @@ def main():
 
     current_rows = []
 
-    if qual_results:
-        logging.info('Loaded qualifying data from Jolpica API for round %s', active_round)
+    # Priority 1: Race Results exist (Post-Race) -> Populate pos, race, grid, and qualy
+    if race_results:
+        logging.info('Loaded race results from Jolpica API for round %s', active_round)
+        for res in race_results:
+            d_info = res.get('Driver', {})
+            c_info = res.get('Constructor', {})
+            d_id = d_info.get('driverId', '')
+            raw_dname = f"{d_info.get('givenName', '')} {d_info.get('familyName', '')}".strip()
+            
+            driver_name = get_standardized_name(d_id, raw_dname)
+            team_name = get_standardized_team(c_info.get('name', ''))
+            final_pos = res.get('position')
+            
+            # Find matching qualifying time if available
+            q_match = next((q for q in qual_results if q.get('Driver', {}).get('driverId') == d_id), {})
+            
+            current_rows.append({
+                'driver': driver_name,
+                'team': team_name,
+                'grid': res.get('grid'),
+                'pos': final_pos,  # Populated post-race
+                'race': final_pos,
+                'no': res.get('number'),
+                'qualy': q_match.get('position', ''),
+                'laps': res.get('laps'),
+                'pts': res.get('points'),
+                'fastest_lap': res.get('FastestLap', {}).get('Time', {}).get('time'),
+                'q1': q_match.get('Q1'),
+                'q2': q_match.get('Q2'),
+                'q3': q_match.get('Q3')
+            })
+
+    # Priority 2: Pre-Race / Post-Qualifying -> Leave pos blank ("")
+    elif qual_results:
+        logging.info('Loaded qualifying data (Pre-Race); setting pos to blank for round %s', active_round)
         for q in qual_results:
             d_info = q.get('Driver', {})
             c_info = q.get('Constructor', {})
@@ -125,39 +160,14 @@ def main():
             current_rows.append({
                 'driver': driver_name,
                 'team': team_name,
-                'grid': qual_pos, # fallback grid to qualifying pos if grid isn't set yet
-                'pos': qual_pos,
+                'grid': qual_pos,  # Default starting grid before penalties
+                'pos': "",        # Left blank until after the race
                 'no': q.get('number'),
                 'qualy': qual_pos,
                 'q1': q.get('Q1'),
                 'q2': q.get('Q2'),
                 'q3': q.get('Q3')
             })
-    else:
-        # Fallback to F1.com HTML parsing if Jolpica doesn't have it yet
-        logging.info('Jolpica qualifying not ready; attempting F1.com scrape fallback...')
-        # Map race name to F1 URL slug
-        race_name_lower = active_race_meta.get('raceName', '').lower()
-        slug_match = next((v for k, v in RACE_URLS.items() if k in race_name_lower), (1279, 'australia'))
-        base_url = f'{F1_BASE}/{slug_match[0]}/{slug_match[1]}/qualifying'
-        
-        try:
-            r_f1 = session.get(base_url, timeout=TIMEOUT)
-            soup = BeautifulSoup(r_f1.text, 'html.parser')
-            table = soup.select_one('#results-table table') or soup.find('table')
-            if table:
-                for tr in table.select('tbody tr'):
-                    cells = [clean(td.get_text()) for td in tr.find_all('td', recursive=False)]
-                    if len(cells) >= 4:
-                        current_rows.append({
-                            'driver': get_standardized_name('', cells[2] if len(cells) > 2 else ''),
-                            'team': get_standardized_team(cells[3] if len(cells) > 3 else ''),
-                            'grid': cells[0],
-                            'pos': cells[0],
-                            'qualy': cells[0]
-                        })
-        except Exception as e:
-            logging.error('F1.com scraping fallback failed: %s', e)
 
     payload = {
         'generated_at_utc': now.isoformat(),
