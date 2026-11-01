@@ -11,13 +11,17 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SEASON = int(os.getenv('F1_SEASON', '2026'))
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', str(REPO_ROOT / f'current.json')))
+OUTPUT = Path(os.getenv('F1_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
 CURRENT_OUTPUT = Path(os.getenv('F1_CURRENT_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
 CALENDAR_URL = os.getenv('F1_CALENDAR_URL', 'https://files-f1.motorsportcalendars.com/f1-calendar_p1_p2_p3_qualifying_sprint_gp.ics')
 JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
+
+# Time windows for weekend-aware tracking
 START_AFTER = timedelta(minutes=90)
-CUTOFF_AFTER = timedelta(minutes=150)
+CUTOFF_AFTER = timedelta(hours=6)
+WEEKEND_START_BEFORE = timedelta(days=3)  # Active from Friday onwards
+
 TIMEOUT = 30
 DELAY = float(os.getenv('F1_REQUEST_DELAY', '0.15'))
 FORCE = os.getenv('F1_FORCE_SCRAPE', '').lower() in {'1','true','yes','on'}
@@ -76,11 +80,9 @@ def extract_records(mr,key):
             entry={'season':race.get('season'),'round':race.get('round'),'date':race.get('date'),'standings':race.get('DriverStandings') or race.get('ConstructorStandings') or []}
             out.append(entry)
         return out
-    # RaceTable endpoints have nested Race objects, with results in the race.
     return table.get('Races',[]) if key=='RaceTable' else []
 
 def merge_page_records(existing, incoming):
-    """Merge paginated Ergast responses, whose rows are nested inside race objects."""
     by_key = {}
     ordered = []
     nested_keys = ('Results', 'SprintResults', 'QualifyingResults', 'PitStops', 'Laps',
@@ -103,7 +105,6 @@ def merge_page_records(existing, incoming):
         for field, value in record.items():
             if field not in nested_keys and field not in target:
                 target[field] = value
-    # De-duplicate rows in case an API page boundary repeats a record.
     for record in by_key.values():
         for nested in nested_keys:
             values = record.get(nested)
@@ -127,15 +128,12 @@ def fetch_paginated(session,path,key=None):
         try: total=int(mr.get('total',offset+len(records)))
         except (ValueError,TypeError): total=offset+len(records)
         limit=int(mr.get('limit',1000) or 1000)
-        # Ergast-style endpoints paginate the nested rows (e.g. Laps), not the
-        # outer RaceTable wrapper. Therefore compare the offset with MRData.total.
         if not records or offset + limit >= total: break
         offset += limit
         time.sleep(DELAY)
     return {'source':'Jolpica API','urls':source_urls,'count':sum(len(r.get('Laps',[])) + len(r.get('PitStops',[])) for r in all_records) if path.endswith(('/laps','/pitstops')) else len(all_records),'data':all_records}
 
 def extract_fastest_laps(race_record):
-    """Return only each driver's fastest-lap time; omit rank, lap and speed."""
     if not isinstance(race_record, dict):
         return []
     rows = []
@@ -155,9 +153,7 @@ def extract_fastest_laps(race_record):
             rows.append({'driver': name, 'fastest_lap': lap_time})
     return rows
 
-
 def add_fastest_laps_by_round(jolpica_data):
-    """Add a compact per-round list without discarding original Results fields."""
     results = jolpica_data.get('results', {}).get('data', [])
     jolpica_data['fastest_laps_by_round'] = {
         str(race.get('round')): extract_fastest_laps(race)
@@ -165,11 +161,7 @@ def add_fastest_laps_by_round(jolpica_data):
         if race.get('round') is not None
     }
 
-
 def fetch_jolpica_season(session):
-    # Fetch only the selected season. Do not request global all-years season,
-    # circuit, or status catalogues; derive the circuits used this season from
-    # the season's race calendar instead.
     specs=[(f'{SEASON}/races',f'{SEASON}/races','RaceTable'),(f'{SEASON}/constructors',f'{SEASON}/constructors','ConstructorTable'),(f'{SEASON}/drivers',f'{SEASON}/drivers','DriverTable'),(f'{SEASON}/results',f'{SEASON}/results','RaceTable'),(f'{SEASON}/sprint',f'{SEASON}/sprint','RaceTable'),(f'{SEASON}/qualifying',f'{SEASON}/qualifying','RaceTable'),(f'{SEASON}/driverstandings',f'{SEASON}/driverstandings','StandingsTable'),(f'{SEASON}/constructorstandings',f'{SEASON}/constructorstandings','StandingsTable')]
     data={}
     for name,path,key in specs:
@@ -185,8 +177,6 @@ def fetch_jolpica_season(session):
         if isinstance(circuit,dict) and circuit.get('circuitId'):
             circuits[circuit['circuitId']]=circuit
     data['circuits']={'source':'Jolpica API (derived from this season race calendar)','urls':data.get('races',{}).get('urls',[]),'count':len(circuits),'data':list(circuits.values())}
-    # Laps and pit stops are collected only for rounds in the selected season.
-    # --skip-round-details is useful for a quick local smoke test.
     data['pitstops_by_round']={}; data['laps_by_round']={}
     if SKIP_ROUND_DETAILS:
         data['round_details_skipped'] = True
@@ -210,7 +200,7 @@ def _ics_unescape(value):
 
 def _parse_ics_datetime(value, tzid=None):
     value = value.strip()
-    if len(value) == 8:  # Date-only entries are not race start times.
+    if len(value) == 8:
         return None
     fmt = '%Y%m%dT%H%M%SZ' if value.endswith('Z') else '%Y%m%dT%H%M%S'
     try:
@@ -227,9 +217,7 @@ def _parse_ics_datetime(value, tzid=None):
     return dt.replace(tzinfo=timezone.utc)
 
 def get_calendar(session):
-    """Read the small subset of iCalendar needed for race-event selection."""
     r=session.get(CALENDAR_URL,timeout=TIMEOUT); r.raise_for_status()
-    # Unfold RFC 5545 continuation lines before splitting event properties.
     lines=[]
     for line in r.text.replace('\r\n', '\n').replace('\r', '\n').split('\n'):
         if line.startswith((' ', '\t')) and lines:
@@ -262,21 +250,29 @@ def get_calendar(session):
             current['DTSTART']=value
             current['DTSTART_TZID']=params.get('TZID')
     return sorted(events,key=lambda x:x['start_utc'])
+
 def race_name(summary):
     m=re.search(r'\(([^()]*Grand Prix)\)',summary,re.I)
     if m:return clean(m.group(1))
     m=re.search(r'((?:[A-Za-zÀ-ÿ0-9\'’.-]+\s+){0,5}Grand Prix)',summary,re.I)
     return clean(m.group(1)) if m else clean(summary)
+
 def select_event(events,now):
-    completed=[e for e in events if e['start_utc']+START_AFTER<=now]
     if RACE_FILTER:
-        matches=[e for e in completed if norm(RACE_FILTER) in norm(e['summary']) or norm(RACE_FILTER) in norm(race_name(e['summary']))]
+        matches=[e for e in events if norm(RACE_FILTER) in norm(e['summary']) or norm(RACE_FILTER) in norm(race_name(e['summary']))]
         return max(matches,key=lambda x:x['start_utc']) if matches else None
     if FORCE:
-        candidates=[e for e in events if e['start_utc']+START_AFTER<=now]
-        return max(candidates,key=lambda x:x['start_utc']) if candidates else None
-    candidates=[e for e in events if e['start_utc']+START_AFTER<=now<=e['start_utc']+CUTOFF_AFTER]
-    return max(candidates,key=lambda x:x['start_utc']) if candidates else None
+        candidates=[e for e in events if e['start_utc'] - WEEKEND_START_BEFORE <= now <= e['start_utc'] + CUTOFF_AFTER]
+        return max(candidates,key=lambda x:x['start_utc']) if candidates else max(events,key=lambda x:x['start_utc'])
+    
+    # Automatically match any event whose weekend we are currently inside (Fri through Sunday post-race)
+    active = [e for e in events if e['start_utc'] - WEEKEND_START_BEFORE <= now <= e['start_utc'] + CUTOFF_AFTER]
+    if active:
+        return max(active, key=lambda x: x['start_utc'])
+    
+    # Fallback to the most recent past event if between weekends
+    past = [e for e in events if e['start_utc'] + CUTOFF_AFTER < now]
+    return max(past, key=lambda x:x['start_utc']) if past else events[0]
 
 def parse_f1_table(html):
     soup=BeautifulSoup(html,'html.parser'); table=soup.select_one('#results-table table') or soup.find('table')
@@ -293,12 +289,13 @@ def parse_f1_table(html):
         row={ (headers[i].replace(' / ','_').replace(' ','_').replace('-','_') if i<len(headers) and headers[i] else f'column_{i+1}'):v for i,v in enumerate(vals)}
         row['driver_number']=row.get('no'); rows.append(row)
     return {'ok':bool(rows),'headers':headers,'rows':rows,'error':None if rows else 'No rows found.'}
+
 def scrape_f1_page(session,url):
     try:
         r=session.get(url,timeout=TIMEOUT); r.raise_for_status(); out=parse_f1_table(r.text); out.update({'url':url,'status_code':r.status_code,'source':'Formula1.com'}); return out
     except Exception as e:return {'url':url,'source':'Formula1.com','status_code':None,'ok':False,'headers':[],'rows':[],'error':f'{type(e).__name__}: {e}'}
+
 def attach_fastest_laps_to_formula1_rows(formula1_source, jolpica_race):
-    """Join each driver's fastest-lap time onto the single Formula1.com result row."""
     if not isinstance(formula1_source, dict):
         return
     if not isinstance(jolpica_race, dict):
@@ -330,19 +327,28 @@ def attach_fastest_laps_to_formula1_rows(formula1_source, jolpica_race):
             row['fastest_lap'] = by_name.get(driver_name) if driver_name else None
     result_table['headers'] = list(dict.fromkeys(result_table.get('headers', []) + ['grid', 'fastest_lap']))
 
-
 def fetch_formula1_current(session,event):
     summary=event['summary'].lower(); match=next(((k,v) for k,v in sorted(RACE_URLS.items(),key=lambda p:len(p[0]),reverse=True) if k in summary),None)
     if not match:return {'ok':False,'error':f'No Formula1.com race mapping for {event["summary"]}'}
     race_id,slug=match[1]; base=f'{F1_BASE}/{race_id}/{slug}'
+    
     result=scrape_f1_page(session,base+'/race-result'); time.sleep(DELAY)
     grid=scrape_f1_page(session,base+'/starting-grid')
     if not grid['ok']:
         time.sleep(DELAY); qualifying=scrape_f1_page(session,base+'/qualifying')
         grid={'source':'Formula1.com qualifying fallback','url':qualifying['url'],'ok':qualifying['ok'],'headers':qualifying['headers'],'rows':qualifying['rows'],'error':qualifying['error']} if qualifying['ok'] else {'source':'Formula1.com starting-grid','url':base+'/starting-grid','ok':False,'rows':[],'error':'Starting grid and qualifying unavailable.'}
 
-    # Join the start position into the finish-classification rows so each driver
-    # appears once: grid = starting position, pos = final race position.
+    # Fallback to qualifying/grid if race results aren't available yet (e.g. Saturday qualifying day)
+    if not result['ok'] and grid['ok']:
+        result = {
+            'ok': True,
+            'source': 'Formula1.com qualifying/grid (pre-race fallback)',
+            'url': grid.get('url', base + '/qualifying'),
+            'headers': grid.get('headers', []),
+            'rows': grid.get('rows', []),
+            'error': None
+        }
+
     grid_by_number = {
         str(row.get('driver_number') or row.get('no')): row
         for row in grid.get('rows', [])
@@ -357,7 +363,6 @@ def fetch_formula1_current(session,event):
             row['grid'] = None
     result['headers'] = list(dict.fromkeys(result.get('headers', []) + ['grid']))
 
-    # Keep the source link/status, but don't emit a second full set of driver rows.
     grid_metadata = {key: grid.get(key) for key in ('source', 'url', 'ok', 'error') if key in grid}
     return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid_source':grid_metadata}
 
@@ -367,8 +372,8 @@ def main(argv=None):
     parser.add_argument('--season', type=int, default=SEASON, help='season year (default: %(default)s)')
     parser.add_argument('--output', type=Path, default=OUTPUT, help='full current-season JSON path (default: %(default)s)')
     parser.add_argument('--current-output', type=Path, default=CURRENT_OUTPUT, help='latest selected Grand Prix JSON path (default: %(default)s)')
-    parser.add_argument('--force', action='store_true', help='scrape the latest completed Grand Prix outside the automatic race window')
-    parser.add_argument('--race', help='select a completed Grand Prix by name, e.g. United States Grand Prix')
+    parser.add_argument('--force', action='store_true', help='scrape the latest Grand Prix outside the automatic window')
+    parser.add_argument('--race', help='select a Grand Prix by name, e.g. Mexico Grand Prix')
     parser.add_argument('--skip-round-details', action='store_true', help='skip per-round lap and pit-stop endpoints (faster smoke test)')
     args = parser.parse_args(argv)
     SEASON = args.season
@@ -384,23 +389,21 @@ def main(argv=None):
     except Exception as e: LOG.error('Calendar fetch failed: %s',e); return 1
     event=select_event(events,now)
     if not event:
-        LOG.info('Outside the post-race window; no data-source requests made. Use workflow_dispatch force=true to test.')
+        LOG.info('Outside the active weekend window; no data-source requests made.')
         return 0
     LOG.info('Selected race: %s at %s',event['summary'],event['start_utc'].isoformat())
-    document={'schema_version':1,'season':SEASON,'generated_at_utc':now.isoformat(),'race_window':{'calendar_event':event['summary'],'scheduled_start_utc':event['start_utc'].isoformat(),'opens_utc':(event['start_utc']+START_AFTER).isoformat(),'closes_utc':(event['start_utc']+CUTOFF_AFTER).isoformat(),'forced':FORCE},'sources':{}}
-    # Fetch all Jolpica resources listed by the user into a single, predictable object.
+    document={'schema_version':1,'season':SEASON,'generated_at_utc':now.isoformat(),'race_window':{'calendar_event':event['summary'],'scheduled_start_utc':event['start_utc'].isoformat(),'opens_utc':(event['start_utc'] - WEEKEND_START_BEFORE).isoformat(),'closes_utc':(event['start_utc']+CUTOFF_AFTER).isoformat(),'forced':FORCE},'sources':{}}
     try: document['sources']['jolpica']=fetch_jolpica_season(session)
     except Exception as e: document['sources']['jolpica']={'error':f'{type(e).__name__}: {e}'}; LOG.exception('Jolpica fetch failed')
     document['sources']['formula1_com']=fetch_formula1_current(session,event)
-    # Convenient derived summary joins Jolpica classification, fastest laps and F1.com rows.
+    
     jol=document['sources'].get('jolpica',{})
     rounds=jol.get('races',{}).get('data',[]) if isinstance(jol,dict) else []
     result_races=jol.get('results',{}).get('data',[]) if isinstance(jol,dict) else []
     qual_races=jol.get('qualifying',{}).get('data',[]) if isinstance(jol,dict) else []
     sprint_races=jol.get('sprint',{}).get('data',[]) if isinstance(jol,dict) else []
     target=norm(race_name(event['summary']))
-    # Calendar feeds and Jolpica occasionally phrase GP names differently.
-    # Try exact names first, then a conservative containment match.
+    
     def find_race(records):
         exact=next((r for r in records if norm(r.get('raceName',''))==target),None)
         if exact is not None:
@@ -408,10 +411,9 @@ def main(argv=None):
         candidates=[r for r in records if norm(r.get('raceName','')) and
                     (norm(r.get('raceName','')) in target or target in norm(r.get('raceName','')))]
         return candidates[0] if len(candidates)==1 else None
+        
     matched=find_race(rounds)
     race_results=find_race(result_races)
-    # If the season-wide results endpoint omitted nested results, explicitly
-    # request the selected round's classification using the calendar round.
     if race_results is None and matched and matched.get('round'):
         round_no=str(matched['round'])
         try:
@@ -419,12 +421,9 @@ def main(argv=None):
             race_results=find_race(round_payload.get('data',[]))
             if race_results is None:
                 race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
-            if race_results:
-                LOG.info('Loaded selected round %s results directly from Jolpica.',round_no)
         except Exception as exc:
             LOG.warning('Could not fetch selected-round results from Jolpica: %s',exc)
-    # Last-resort selected-race fetch: keep current.json useful even if the
-    # bulk season endpoint failed or returned no usable race records.
+            
     if matched is None and race_results is None:
         try:
             schedule_payload=fetch_paginated(session,f'{SEASON}/races','RaceTable')
@@ -435,6 +434,7 @@ def main(argv=None):
                 race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
         except Exception as exc:
             LOG.warning('Selected-race Jolpica fallback failed: %s',exc)
+            
     if matched is None and race_results is not None:
         matched = {
             'season': race_results.get('season', str(SEASON)),
@@ -445,6 +445,7 @@ def main(argv=None):
             'url': race_results.get('url'),
             '_derived_from': 'Jolpica results fallback (race calendar metadata unavailable)',
         }
+        
     if matched or race_results:
         round_no=str((matched or race_results).get('round'))
         if race_results is None:
@@ -457,8 +458,6 @@ def main(argv=None):
                 LOG.warning('Could not backfill selected-round results for round %s: %s',round_no,exc)
         document['current_race']={'round':round_no,'race_name':(matched or race_results).get('raceName'),'race_metadata':matched,'results':race_results,'qualifying':next((r for r in qual_races if str(r.get('round'))==round_no),None),'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),'pitstops':jol.get('pitstops_by_round',{}).get(round_no),'laps':jol.get('laps_by_round',{}).get(round_no)}
     else:
-        f1_source=document['sources'].get('formula1_com',{})
-        f1_result=f1_source.get('race_results',{}) if isinstance(f1_source,dict) else {}
         document['current_race']={
             'round':None,
             'race_name':race_name(event['summary']),
@@ -470,15 +469,12 @@ def main(argv=None):
             'laps':None,
             'note':'Jolpica race results were unavailable for this run; Formula1.com classification is retained under sources.formula1_com.'
         }
-    # Every Formula1.com classification row has the same schema, even if
-    # Jolpica has no fastest-lap data for this run.
+        
     attach_fastest_laps_to_formula1_rows(document['sources'].get('formula1_com', {}), race_results)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUTPUT,document)
     LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
 
-    # current.json is intentionally just the compact driver classification:
-    # one row per driver, with only the nine fields needed downstream.
     f1_source = document.get('sources', {}).get('formula1_com', {})
     f1_result = f1_source.get('race_results', {}) if isinstance(f1_source, dict) else {}
     current_rows = []
@@ -498,9 +494,6 @@ def main(argv=None):
     write_json(CURRENT_OUTPUT, current_rows)
     LOG.info('Wrote compact latest-race driver rows: %s (%d bytes)',CURRENT_OUTPUT,CURRENT_OUTPUT.stat().st_size)
 
-    # Do not make the whole workflow fail just because an optional source or a
-    # summary count is missing. Jolpica can return useful data even when its
-    # metadata total/count is absent or zero; check the actual saved records.
     jolpica = document.get('sources', {}).get('jolpica', {})
     race_records = jolpica.get('races', {}).get('data', []) if isinstance(jolpica, dict) else []
     result_records = jolpica.get('results', {}).get('data', []) if isinstance(jolpica, dict) else []
@@ -514,4 +507,5 @@ def main(argv=None):
         LOG.warning('Jolpica race metadata is empty; workflow succeeds because other core race data was saved.')
     LOG.info('Core race data saved successfully.')
     return 0
+
 if __name__=='__main__': raise SystemExit(main())
