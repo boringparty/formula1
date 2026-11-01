@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch current or next F1 session data accurately by scanning the 2026 calendar dates."""
+"""Fetch current/upcoming F1 session details, results, qualifying, and standings from Jolpica."""
 from __future__ import annotations
 import json, os
 from datetime import datetime, timezone, date
@@ -14,83 +14,143 @@ JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 TIMEOUT = 30
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
 
+def safe_get(session: requests.Session, url: str) -> dict:
+    try:
+        r = session.get(url, timeout=TIMEOUT)
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(f"Warning: Failed to fetch {url}: {e}")
+    return {}
+
 def main():
     session = requests.Session()
     session.headers.update(HEADERS)
     
-    print(f"Fetching {SEASON} full season calendar from Jolpica...")
-    try:
-        url = f'{JOLPICA}/{SEASON}.json'
-        r = session.get(url, timeout=TIMEOUT)
-        data = r.json()
-        races = data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
-        
-        if not races:
-            print("Error: Could not retrieve races for the season.")
-            return
+    print(f"Fetching {SEASON} schedule from Jolpica...")
+    sched_data = safe_get(session, f'{JOLPICA}/{SEASON}.json')
+    races = sched_data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
+    
+    if not races:
+        print("Error: Could not retrieve schedule.")
+        return
 
-        today = date.today()
-        target_race = None
+    today = date.today()
+    target_race = None
 
-        # Find the first race whose date is today or in the future
-        for race in races:
-            race_date_str = race.get('date')
-            if race_date_str:
-                r_date = datetime.strptime(race_date_str, '%Y-%m-%d').date()
-                if r_date >= today:
-                    target_race = race
-                    break
-        
-        # If all races for the year have passed, default to the final round
-        if not target_race and races:
-            target_race = races[-1]
+    # Locate current or upcoming race round
+    for race in races:
+        race_date_str = race.get('date')
+        if race_date_str:
+            r_date = datetime.strptime(race_date_str, '%Y-%m-%d').date()
+            if r_date >= today:
+                target_race = race
+                break
+    
+    if not target_race:
+        target_race = races[-1]
 
-        round_no = target_race.get('round')
-        race_name = target_race.get('raceName')
-        print(f"Targeting Round {round_no}: {race_name} (Date: {target_race.get('date')})")
+    round_no = target_race.get('round')
+    race_name = target_race.get('raceName')
+    circuit = target_race.get('Circuit', {})
+    
+    print(f"Targeting Round {round_no}: {race_name}")
 
-        # Try fetching results for this round safely
-        results_url = f'{JOLPICA}/{SEASON}/{round_no}/results.json'
-        res_r = session.get(results_url, timeout=TIMEOUT)
-        res_data = res_r.json()
-        
-        race_list = res_data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
-        results = []
-        if race_list:
-            results = race_list[0].get('Results', [])
+    # 1. Fetch Official Race Results (if complete)
+    res_data = safe_get(session, f'{JOLPICA}/{SEASON}/{round_no}/results.json')
+    res_races = res_data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
+    results_list = res_races[0].get('Results', []) if res_races else []
 
-        formatted_results = []
-        for res in results:
-            driver = res.get('Driver', {})
-            constructor = res.get('Constructor', {})
-            formatted_results.append({
-                'position': res.get('position'),
-                'pos': res.get('position') if res.get('position') else '',
+    formatted_results = []
+    for res in results_list:
+        driver = res.get('Driver', {})
+        constructor = res.get('Constructor', {})
+        formatted_results.append({
+            'position': res.get('position'),
+            'driverId': driver.get('driverId'),
+            'code': driver.get('code'),
+            'driverName': f"{driver.get('givenName', '')} {driver.get('familyName', '')}".strip(),
+            'constructorId': constructor.get('constructorId'),
+            'constructorName': constructor.get('name'),
+            'laps': res.get('laps'),
+            'status': res.get('status'),
+            'time': res.get('Time', {}).get('time', ''),
+            'points': res.get('points', '0')
+        })
+
+    # 2. Fetch Qualifying Classification
+    qual_data = safe_get(session, f'{JOLPICA}/{SEASON}/{round_no}/qualifying.json')
+    qual_races = qual_data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
+    qual_list = qual_races[0].get('QualifyingResults', []) if qual_races else []
+
+    formatted_qualifying = []
+    for q in qual_list:
+        driver = q.get('Driver', {})
+        constructor = q.get('Constructor', {})
+        formatted_qualifying.append({
+            'position': q.get('position'),
+            'driverId': driver.get('driverId'),
+            'code': driver.get('code'),
+            'driverName': f"{driver.get('givenName', '')} {driver.get('familyName', '')}".strip(),
+            'constructorId': constructor.get('constructorId'),
+            'constructorName': constructor.get('name'),
+            'q1': q.get('Q1', ''),
+            'q2': q.get('Q2', ''),
+            'q3': q.get('Q3', '')
+        })
+
+    # 3. Fetch Driver Standings
+    d_stand_data = safe_get(session, f'{JOLPICA}/{SEASON}/driverstandings.json')
+    d_lists = d_stand_data.get('MRData', {}).get('StandingsTable', {}).get('StandingsLists', [])
+    driver_standings = []
+    if d_lists:
+        for ds in d_lists[0].get('DriverStandings', []):
+            driver = ds.get('Driver', {})
+            constructors = ds.get('Constructors', [{}])
+            driver_standings.append({
+                'position': ds.get('position'),
                 'driverId': driver.get('driverId'),
                 'code': driver.get('code'),
-                'constructorId': constructor.get('constructorId'),
-                'laps': res.get('laps'),
-                'status': res.get('status'),
-                'time': res.get('Time', {}).get('time', '')
+                'driverName': f"{driver.get('givenName', '')} {driver.get('familyName', '')}".strip(),
+                'points': ds.get('points'),
+                'wins': ds.get('wins'),
+                'constructorId': constructors[0].get('constructorId') if constructors else '',
+                'constructorName': constructors[0].get('name') if constructors else ''
             })
 
-        payload = {
-            'season': SEASON,
-            'round': round_no,
-            'race_name': race_name,
-            'date': target_race.get('date'),
-            'time': target_race.get('time'),
-            'updated_at_utc': datetime.now(timezone.utc).isoformat(),
-            'results': formatted_results
-        }
+    # 4. Fetch Constructor Standings
+    c_stand_data = safe_get(session, f'{JOLPICA}/{SEASON}/constructorstandings.json')
+    c_lists = c_stand_data.get('MRData', {}).get('StandingsTable', {}).get('StandingsLists', [])
+    constructor_standings = []
+    if c_lists:
+        for cs in c_lists[0].get('ConstructorStandings', []):
+            constructor = cs.get('Constructor', {})
+            constructor_standings.append({
+                'position': cs.get('position'),
+                'constructorId': constructor.get('constructorId'),
+                'constructorName': constructor.get('name'),
+                'points': cs.get('points'),
+                'wins': cs.get('wins')
+            })
 
-        OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-        OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-        print(f"Successfully updated {OUTPUT} for Round {round_no} ({len(formatted_results)} results recorded).")
+    payload = {
+        'season': SEASON,
+        'round': round_no,
+        'race_name': race_name,
+        'circuit_id': circuit.get('circuitId'),
+        'circuit_name': circuit.get('circuitName'),
+        'date': target_race.get('date'),
+        'time': target_race.get('time'),
+        'updated_at_utc': datetime.now(timezone.utc).isoformat(),
+        'race_results': formatted_results,
+        'qualifying_results': formatted_qualifying,
+        'driver_standings': driver_standings,
+        'constructor_standings': constructor_standings
+    }
 
-    except Exception as e:
-        print(f"Error updating current session data: {e}")
-        raise
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    print(f"Successfully generated {OUTPUT} for Round {round_no}.")
 
 if __name__ == '__main__':
     main()
