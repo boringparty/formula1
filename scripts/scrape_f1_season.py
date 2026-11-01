@@ -475,24 +475,53 @@ def main(argv=None):
     write_json(OUTPUT,document)
     LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
 
+    # Build compact latest-session driver rows
     f1_source = document.get('sources', {}).get('formula1_com', {})
     f1_result = f1_source.get('race_results', {}) if isinstance(f1_source, dict) else {}
+    jol_race = document.get('current_race', {})
+    jol_qual = jol_race.get('qualifying', {}) if isinstance(jol_race, dict) else {}
+    
     current_rows = []
-    for row in f1_result.get('rows', []) if isinstance(f1_result, dict) else []:
-        current_rows.append({
-            'driver': row.get('driver'),
-            'team': row.get('team'),
-            'grid': row.get('grid'),
-            'pos': row.get('pos'),
-            'no': row.get('no'),
-            'laps': row.get('laps'),
-            'time_retired': row.get('time_retired'),
-            'pts': row.get('pts'),
-            'fastest_lap': row.get('fastest_lap'),
-        })
+
+    # Priority 1: Check Jolpica QualifyingResults (e.g. Saturday qualifying payload)
+    if jol_qual and isinstance(jol_qual.get('QualifyingResults'), list) and jol_qual['QualifyingResults']:
+        for q in jol_qual['QualifyingResults']:
+            driver_info = q.get('Driver', {})
+            constructor = q.get('Constructor', {})
+            driver_name = f"{driver_info.get('givenName', '')} {driver_info.get('familyName', '')}".strip()
+            
+            current_rows.append({
+                'driver': driver_name,
+                'team': constructor.get('name'),
+                'grid': q.get('position'),
+                'pos': q.get('position'),
+                'no': q.get('number'),
+                'q1': q.get('Q1'),
+                'q2': q.get('Q2'),
+                'q3': q.get('Q3'),
+            })
+
+    # Priority 2: Fall back to Formula1.com race or starting grid/qualifying rows
+    elif isinstance(f1_result, dict) and f1_result.get('rows'):
+        for row in f1_result.get('rows', []):
+            current_rows.append({
+                'driver': row.get('driver') or row.get('name'),
+                'team': row.get('team') or row.get('car'),
+                'grid': row.get('grid') or row.get('pos'),
+                'pos': row.get('pos') or row.get('position'),
+                'no': row.get('no') or row.get('driver_number'),
+                'laps': row.get('laps'),
+                'time_retired': row.get('time_retired'),
+                'pts': row.get('pts'),
+                'fastest_lap': row.get('fastest_lap'),
+                'q1': row.get('q1'),
+                'q2': row.get('q2'),
+                'q3': row.get('q3'),
+            })
+
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(CURRENT_OUTPUT, current_rows)
-    LOG.info('Wrote compact latest-race driver rows: %s (%d bytes)',CURRENT_OUTPUT,CURRENT_OUTPUT.stat().st_size)
+    LOG.info('Wrote compact latest-race driver rows: %s (%d bytes)', CURRENT_OUTPUT, CURRENT_OUTPUT.stat().st_size)
 
     jolpica = document.get('sources', {}).get('jolpica', {})
     race_records = jolpica.get('races', {}).get('data', []) if isinstance(jolpica, dict) else []
