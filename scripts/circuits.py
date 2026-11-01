@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate circuits.json by scraping the F1 calendar index and individual track stat pages."""
+"""Generate circuits.json by scraping the F1 calendar index (via a.group) and individual track stat pages."""
 from __future__ import annotations
 import json, os, re, time
 from datetime import datetime, timezone
@@ -55,7 +55,7 @@ def get_previous_year_winners() -> dict:
     return winners
 
 def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
-    """Scrapes the main F1 calendar page to map race names/rounds to their specific subpage URLs."""
+    """Scrapes the main F1 calendar page using a.group to map race slugs to specific subpage URLs."""
     mapping = {}
     try:
         r = session.get(F1_CALENDAR_URL, timeout=TIMEOUT)
@@ -63,17 +63,16 @@ def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
             return mapping
         
         soup = BeautifulSoup(r.text, 'html.parser')
-        # Find all anchor tags pointing to individual race subpages
-        for a in soup.select('a[href*="/en/racing/2026/"]'):
+        for a in soup.select('a.group'):
             href = a.get('href', '')
-            # Match paths like /en/racing/2026/mexico or /en/racing/2026/australia
-            parts = [p for p in href.split('/') if p]
-            if len(parts) >= 4 and parts[-2] == str(SEASON):
-                circuit_slug = parts[-1]
-                full_url = href if href.startswith('http') else f"{F1_BASE_URL}{href}"
-                mapping[circuit_slug.lower()] = full_url
+            if '/en/racing/2026/' in href and 'testing' not in href:
+                parts = [p for p in href.split('/') if p]
+                if parts:
+                    slug = parts[-1].lower()
+                    full_url = href if href.startswith('http') else f"{F1_BASE_URL}{href}"
+                    mapping[slug] = full_url
     except Exception as e:
-        print(f"Warning: Could not extract subpage links from calendar index: {e}")
+        print(f"Warning: Could not extract subpage links via a.group: {e}")
     return mapping
 
 def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
@@ -138,7 +137,18 @@ def main():
     prev_winners = get_previous_year_winners()
     calendar_urls = get_circuit_urls_from_calendar(session)
     
-    # Fetch schedule baseline from Jolpica API
+    # Fallback explicit mapping if any index lookup fails
+    fallback_mapping = {
+        'albert_park': 'australia', 'shanghai': 'china', 'suzuka': 'japan',
+        'miami': 'miami', 'villeneuve': 'canada', 'monaco': 'monaco',
+        'catalunya': 'barcelona-catalunya', 'red_bull_ring': 'austria',
+        'silverstone': 'great-britain', 'spa': 'belgium', 'hungaroring': 'hungary',
+        'zandvoort': 'netherlands', 'monza': 'italy', 'madring': 'spain',
+        'baku': 'azerbaijan', 'sepang': 'bahrain', 'marina_bay': 'singapore',
+        'americas': 'united-states', 'rodriguez': 'mexico', 'interlagos': 'brazil',
+        'vegas': 'las-vegas', 'losail': 'qatar', 'yas_marina': 'united-arab-emirates'
+    }
+
     jol_sched = session.get(f'{JOLPICA}/{SEASON}.json', timeout=TIMEOUT).json()
     races = jol_sched.get('MRData', {}).get('RaceTable', {}).get('Races', [])
 
@@ -148,10 +158,9 @@ def main():
         round_no = race.get('round')
         race_name = race.get('raceName')
         circuit = race.get('Circuit', {})
-        c_id = circuit.get('circuitId')
+        c_id = circuit.get('circuitId', '').lower()
         loc = circuit.get('Location', {})
         
-        # Match previous year winner
         norm_name = clean(race_name).lower()
         winner_code = None
         for k, v in prev_winners.items():
@@ -159,15 +168,20 @@ def main():
                 winner_code = v
                 break
 
-        # Resolve URL: check scraped calendar map first, otherwise construct fallback slug
-        slug = norm_name.replace('grand prix', '').replace('gp', '').strip().replace(' ', '-')
-        circuit_page_url = calendar_urls.get(c_id.lower()) or calendar_urls.get(slug) or f"{F1_BASE_URL}/en/racing/{SEASON}/{slug}"
+        # Resolve exact URL from calendar scraper or fallback dictionary
+        sub_slug = calendar_urls.get(fallback_mapping.get(c_id, '')) or fallback_mapping.get(c_id)
+        if sub_slug and not sub_slug.startswith('http'):
+            circuit_page_url = f"{F1_BASE_URL}/en/racing/{SEASON}/{sub_slug}"
+        elif sub_slug:
+            circuit_page_url = sub_slug
+        else:
+            slug_fallback = norm_name.replace('grand prix', '').replace('gp', '').strip().replace(' ', '-')
+            circuit_page_url = f"{F1_BASE_URL}/en/racing/{SEASON}/{slug_fallback}"
         
         print(f"Scraping Round {round_no}: {race_name} -> {circuit_page_url}")
         detailed_stats = parse_circuit_page(session, circuit_page_url)
         time.sleep(0.4)
 
-        # Fallback image URL construction
         fallback_img = f"https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/{SEASON}/track/{SEASON}track{c_id}detailed.webp"
 
         circuits_data.append({
@@ -194,7 +208,7 @@ def main():
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} circuits and fastest lap stats.")
+    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} fully populated circuits.")
 
 if __name__ == '__main__':
     main()
