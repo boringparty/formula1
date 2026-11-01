@@ -265,12 +265,10 @@ def select_event(events,now):
         candidates=[e for e in events if e['start_utc'] - WEEKEND_START_BEFORE <= now <= e['start_utc'] + CUTOFF_AFTER]
         return max(candidates,key=lambda x:x['start_utc']) if candidates else max(events,key=lambda x:x['start_utc'])
     
-    # Automatically match any event whose weekend we are currently inside (Fri through Sunday post-race)
     active = [e for e in events if e['start_utc'] - WEEKEND_START_BEFORE <= now <= e['start_utc'] + CUTOFF_AFTER]
     if active:
         return max(active, key=lambda x: x['start_utc'])
     
-    # Fallback to the most recent past event if between weekends
     past = [e for e in events if e['start_utc'] + CUTOFF_AFTER < now]
     return max(past, key=lambda x:x['start_utc']) if past else events[0]
 
@@ -338,7 +336,6 @@ def fetch_formula1_current(session,event):
         time.sleep(DELAY); qualifying=scrape_f1_page(session,base+'/qualifying')
         grid={'source':'Formula1.com qualifying fallback','url':qualifying['url'],'ok':qualifying['ok'],'headers':qualifying['headers'],'rows':qualifying['rows'],'error':qualifying['error']} if qualifying['ok'] else {'source':'Formula1.com starting-grid','url':base+'/starting-grid','ok':False,'rows':[],'error':'Starting grid and qualifying unavailable.'}
 
-    # Fallback to qualifying/grid if race results aren't available yet (e.g. Saturday qualifying day)
     if not result['ok'] and grid['ok']:
         result = {
             'ok': True,
@@ -446,7 +443,7 @@ def main(argv=None):
             '_derived_from': 'Jolpica results fallback (race calendar metadata unavailable)',
         }
         
-       if matched or race_results:
+    if matched or race_results:
         round_no=str((matched or race_results).get('round'))
         if race_results is None:
             race_results=next((r for r in result_races if str(r.get('round'))==round_no and r.get('Results')),None)
@@ -457,7 +454,6 @@ def main(argv=None):
             except Exception as exc:
                 LOG.warning('Could not backfill selected-round results for round %s: %s',round_no,exc)
         
-        # Get qualifying from bulk list, or explicitly fetch round-specific endpoint if missing
         qual_record = next((r for r in qual_races if str(r.get('round'))==round_no),None)
         if not qual_record or not qual_record.get('QualifyingResults'):
             try:
@@ -478,13 +474,24 @@ def main(argv=None):
             'pitstops':jol.get('pitstops_by_round',{}).get(round_no),
             'laps':jol.get('laps_by_round',{}).get(round_no)
         }
+    else:
+        document['current_race']={
+            'round':None,
+            'race_name':race_name(event['summary']),
+            'race_metadata':None,
+            'results':None,
+            'qualifying':None,
+            'sprint':None,
+            'pitstops':None,
+            'laps':None,
+            'note':'Jolpica race results were unavailable for this run.'
+        }
         
     attach_fastest_laps_to_formula1_rows(document['sources'].get('formula1_com', {}), race_results)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUTPUT,document)
     LOG.info('Wrote full current-season JSON: %s (%d bytes)',OUTPUT,OUTPUT.stat().st_size)
 
-    # Build compact latest-session driver rows
     f1_source = document.get('sources', {}).get('formula1_com', {})
     f1_result = f1_source.get('race_results', {}) if isinstance(f1_source, dict) else {}
     jol_race = document.get('current_race', {})
@@ -492,7 +499,6 @@ def main(argv=None):
     
     current_rows = []
 
-    # Priority 1: Check Jolpica QualifyingResults (e.g. Saturday qualifying payload)
     if jol_qual and isinstance(jol_qual.get('QualifyingResults'), list) and jol_qual['QualifyingResults']:
         for q in jol_qual['QualifyingResults']:
             driver_info = q.get('Driver', {})
@@ -509,8 +515,6 @@ def main(argv=None):
                 'q2': q.get('Q2'),
                 'q3': q.get('Q3'),
             })
-
-    # Priority 2: Fall back to Formula1.com race or starting grid/qualifying rows
     elif isinstance(f1_result, dict) and f1_result.get('rows'):
         for row in f1_result.get('rows', []):
             current_rows.append({
