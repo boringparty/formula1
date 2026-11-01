@@ -4,7 +4,7 @@
   "race_name": "Mexico City Grand Prix",
   "date": "2026-11-01",
   "time": "20:00:00Z",
-  "updated_at_utc": "2026-11-01T09:46:51.050872+00:00",
+  "updated_at_utc": "2026-11-01T11:06:59.285251+00:00",
   "drivers": [
     {
       "driverName": "Lewis Hamilton",
@@ -133,24 +133,6 @@
       "status": ""
     },
     {
-      "driverName": "Arvid Lindblad",
-      "driverId": "arvid_lindblad",
-      "code": "LIN",
-      "constructorId": "rb",
-      "constructorName": "RB F1 Team",
-      "no": "41",
-      "grid": "8",
-      "qualy": "8",
-      "q1": "1:18.210",
-      "q2": "1:17.135",
-      "q3": "1:17.117",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
-    },
-    {
       "driverName": "Liam Lawson",
       "driverId": "lawson",
       "code": "LAW",
@@ -162,6 +144,24 @@
       "q1": "",
       "q2": "1:17.207",
       "q3": "1:17.029",
+      "pos": "",
+      "race": "",
+      "laps": "",
+      "pts": "",
+      "status": ""
+    },
+    {
+      "driverName": "Arvid Lindblad",
+      "driverId": "arvid_lindblad",
+      "code": "LIN",
+      "constructorId": "rb",
+      "constructorName": "RB F1 Team",
+      "no": "41",
+      "grid": "8",
+      "qualy": "8",
+      "q1": "1:18.210",
+      "q2": "1:17.135",
+      "q3": "1:17.117",
       "pos": "",
       "race": "",
       "laps": "",
