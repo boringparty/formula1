@@ -361,7 +361,7 @@ def fetch_formula1_current(session,event):
     result['headers'] = list(dict.fromkeys(result.get('headers', []) + ['grid']))
 
     grid_metadata = {key: grid.get(key) for key in ('source', 'url', 'ok', 'error') if key in grid}
-    return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid_source':grid_metadata}
+    return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid_source':grid_metadata, 'starting_grid': grid}
 
 def main(argv=None):
     global SEASON, OUTPUT, CURRENT_OUTPUT, F1_BASE, FORCE, SKIP_ROUND_DETAILS, RACE_FILTER
@@ -494,35 +494,71 @@ def main(argv=None):
 
     f1_source = document.get('sources', {}).get('formula1_com', {})
     f1_result = f1_source.get('race_results', {}) if isinstance(f1_source, dict) else {}
+    f1_starting_grid = f1_source.get('starting_grid', {}) if isinstance(f1_source, dict) else {}
     jol_race = document.get('current_race', {})
     jol_qual = jol_race.get('qualifying', {}) if isinstance(jol_race, dict) else {}
     
+    # Map scraped starting grid by driver number and normalized name
+    grid_map_num = {}
+    grid_map_name = {}
+    if isinstance(f1_starting_grid, dict) and f1_starting_grid.get('rows'):
+        for row in f1_starting_grid.get('rows', []):
+            pos = row.get('pos') or row.get('position')
+            num = str(row.get('driver_number') or row.get('no') or '').strip()
+            dname = norm(row.get('driver') or row.get('name') or '')
+            if num:
+                grid_map_num[num] = pos
+            if dname:
+                grid_map_name[dname] = pos
+
     current_rows = []
 
+    # Priority 1: Jolpica QualifyingResults (with Q3 -> Q2 -> Q1 fallbacks for 'qualy' / 'qf')
     if jol_qual and isinstance(jol_qual.get('QualifyingResults'), list) and jol_qual['QualifyingResults']:
         for q in jol_qual['QualifyingResults']:
             driver_info = q.get('Driver', {})
             constructor = q.get('Constructor', {})
-            driver_name = f"{driver_info.get('givenName', '')} {driver_info.get('familyName', '')}".strip()
+            given = driver_info.get('givenName', '')
+            family = driver_info.get('familyName', '')
+            driver_name = f"{given} {family}".strip()
+            num = str(q.get('number', '')).strip()
+            dname_norm = norm(driver_name)
+            
+            # Extract final qualifying lap time (Q3 -> Q2 -> Q1)
+            qualy_time = q.get('Q3') or q.get('Q2') or q.get('Q1')
+            
+            # Scraped grid position from Formula1.com /starting-grid
+            scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname_norm) or q.get('position')
             
             current_rows.append({
                 'driver': driver_name,
                 'team': constructor.get('name'),
-                'grid': q.get('position'),
+                'grid': scraped_grid,
                 'pos': q.get('position'),
                 'no': q.get('number'),
+                'qualy': qualy_time,
+                'qf': qualy_time,
                 'q1': q.get('Q1'),
                 'q2': q.get('Q2'),
                 'q3': q.get('Q3'),
             })
+
+    # Priority 2: Formula1.com race or starting grid fallback
     elif isinstance(f1_result, dict) and f1_result.get('rows'):
         for row in f1_result.get('rows', []):
+            num = str(row.get('no') or row.get('driver_number') or '').strip()
+            dname = norm(row.get('driver') or row.get('name') or '')
+            scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname) or row.get('grid') or row.get('pos')
+            qualy_time = row.get('q3') or row.get('q2') or row.get('q1')
+            
             current_rows.append({
                 'driver': row.get('driver') or row.get('name'),
                 'team': row.get('team') or row.get('car'),
-                'grid': row.get('grid') or row.get('pos'),
+                'grid': scraped_grid,
                 'pos': row.get('pos') or row.get('position'),
                 'no': row.get('no') or row.get('driver_number'),
+                'qualy': qualy_time,
+                'qf': qualy_time,
                 'laps': row.get('laps'),
                 'time_retired': row.get('time_retired'),
                 'pts': row.get('pts'),
