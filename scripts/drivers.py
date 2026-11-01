@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Maintain cumulative drivers.json directory with exact team-nested F1 CDN image paths."""
+"""Maintain cumulative drivers.json directory with full F1 CDN team-nested fallback paths."""
 from __future__ import annotations
 import json, os, re
 from datetime import datetime, timezone
@@ -14,85 +14,43 @@ JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 TIMEOUT = 30
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
 
-# Map Jolpica constructorId to F1 team directory names
-TEAM_SLUG_MAP = {
-    'ferrari': 'ferrari',
-    'mclaren': 'mclaren',
-    'mercedes': 'mercedes',
-    'red_bull': 'red-bull-racing',
-    'aston_martin': 'aston-martin',
-    'alpine': 'alpine',
-    'williams': 'williams',
-    'rb': 'rb',
-    'sauber': 'sauber',
-    'haas': 'haas',
-    'cadillac': 'cadillac',
-    'audi': 'audi'
-}
-
-# Map Jolpica driverId to the exact team-asset code slug (e.g. chalec01, landonor01)
+# Complete 2026 map linking Jolpica driverId to the exact team directory and asset code slug
 DRIVER_ASSET_MAP = {
-    'leclerc': {'code_slug': 'chalec01', 'team': 'ferrari'},
-    'hamilton': {'code_slug': 'lewham01', 'team': 'ferrari'},
-    'norris': {'code_slug': 'lannor01', 'team': 'mclaren'},
-    'piastri': 'oscpia01',
-    'max_verstappen': 'maxver01',
-    'russell': 'georus01',
-    'antonelli': 'kimant01',
-    'sainz': 'carsai01',
-    'alonso': 'fenalo01',
-    'stroll': 'lanstr01',
-    'perez': 'serper01',
-    'gasly': 'piegas01',
-    'ocon': 'estoco01',
-    'albon': 'alealb01',
-    'hulkenberg': 'nichul01',
-    'bottas': 'valbot01',
-    'tsunoda': 'yuktsu01',
-    'bearman': 'olibea01',
-    'colapinto': 'fracol01',
-    'bortoleto': 'gabbor01',
-    'hadjar': 'ishhad01',
-    'lawson': 'lialaw01'
+    'leclerc': {'team': 'ferrari', 'slug': 'chalec01'},
+    'hamilton': {'team': 'ferrari', 'slug': 'lewham01'},
+    'max_verstappen': {'team': 'redbullracing', 'slug': 'maxver01'},
+    'hadjar': {'team': 'redbullracing', 'slug': 'isahad01'},
+    'arvid_lindblad': {'team': 'racingbulls', 'slug': 'arvlin01'},
+    'piastri': {'team': 'mclaren', 'slug': 'oscpia01'},
+    'norris': {'team': 'mclaren', 'slug': 'lannor01'},
+    'russell': {'team': 'mercedes', 'slug': 'georus01'},
+    'antonelli': {'team': 'mercedes', 'slug': 'andant01'},
+    'bortoleto': {'team': 'audi', 'slug': 'gabbor01'},
+    'hulkenberg': {'team': 'audi', 'slug': 'nichul01'},
+    'ocon': {'team': 'haasf1team', 'slug': 'estoco01'},
+    'bearman': {'team': 'haasf1team', 'slug': 'olibea01'},
+    'sainz': {'team': 'williams', 'slug': 'carsai01'},
+    'albon': {'team': 'williams', 'slug': 'alealb01'},
+    'lawson': {'team': 'racingbulls', 'slug': 'lialaw01'},
+    'colapinto': {'team': 'alpine', 'slug': 'fracol01'},
+    'gasly': {'team': 'alpine', 'slug': 'piegas01'},
+    'bottas': {'team': 'cadillac', 'slug': 'valbot01'},
+    'perez': {'team': 'cadillac', 'slug': 'serper01'},
+    'stroll': {'team': 'astonmartin', 'slug': 'lanstr01'},
+    'alonso': {'team': 'astonmartin', 'slug': 'fenalo01'}
 }
 
-def get_current_driver_teams(session: requests.Session) -> dict:
-    """Fetches current driver-to-constructor mappings from Jolpica."""
-    mapping = {}
-    try:
-        r = session.get(f'{JOLPICA}/{SEASON}/drivers.json?limit=100', timeout=TIMEOUT)
-        # Alternatively check driver standings/current entries if available, 
-        # falling back to default constructor mapping from constructor standings
-        r_const = session.get(f'{JOLPICA}/{SEASON}/constructorStandings.json', timeout=TIMEOUT)
-        # We can extract team mapping or rely on driver endpoint if it provides constructor context
-    except Exception:
-        pass
-    return mapping
+def generate_f1_image_url(d_id: str) -> str:
+    """Constructs the full nested F1 CDN image URL with fallback parameters."""
+    info = DRIVER_ASSET_MAP.get(d_id, {'team': 'ferrari', 'slug': f"{d_id[:7]}01"})
+    team = info['team']
+    slug = info['slug']
 
-def generate_f1_image_url(d_id: str, constructor_id: str) -> str:
-    """Builds the exact nested F1 CDN image URL with fallback parameters."""
-    team_slug = TEAM_SLUG_MAP.get(constructor_id, 'ferrari')
-    
-    # Fallback default code slug derivation if not explicitly mapped
-    # e.g., charles-leclerc -> chalec01
-    info = DRIVER_ASSET_MAP.get(d_id)
-    if isinstance(info, dict):
-        code_slug = info.get('code_slug')
-        team_slug = info.get('team', team_slug)
-    elif isinstance(info, str):
-        code_slug = info
-    else:
-        parts = d_id.split('_')
-        if len(parts) >= 2:
-            code_slug = f"{parts[0][:3]}{parts[1][:4]}01".lower()
-        else:
-            code_slug = f"{d_id[:7]}01".lower()
+    transforms = "c_lfill,w_64,h_64,g_north/q_100"
+    fallback = "d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp"
+    asset_path = f"common/f1/2026/{team}/{slug}/2026{team}{slug}right.webp"
 
-    base_transform = "c_lfill,w_64,h_64,g_north/q_100"
-    fallback_param = "d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp"
-    asset_path = f"common/f1/2026/{team_slug}/{code_slug}/2026{team_slug}{code_slug}right.webp"
-
-    return f"https://media.formula1.com/image/upload/{base_transform}/{fallback_param}/v1740000001/{asset_path}"
+    return f"https://media.formula1.com/image/upload/{transforms}/{fallback}/v1740000001/{asset_path}"
 
 def load_existing_drivers() -> dict:
     if OUTPUT.exists():
@@ -109,24 +67,15 @@ def main():
     existing_drivers = load_existing_drivers()
 
     try:
-        # Fetch current drivers list
         r = session.get(f'{JOLPICA}/{SEASON}/drivers.json?limit=100', timeout=TIMEOUT)
         drivers_list = r.json().get('MRData', {}).get('DriverTable', {}).get('Drivers', [])
         
-        # Also fetch latest constructor mapping for drivers if possible, or infer from current round results
-        r_current = session.get(f'{JOLPICA}/{SEASON}/current/drivers.json', timeout=TIMEOUT)
-        current_data = r_current.json().get('MRData', {}).get('DriverTable', {}).get('Drivers', [])
-        
-        # Build driver map
         for d in drivers_list:
             d_id = d.get('driverId', '')
             code = d.get('code') or d.get('familyName', '???')[:3].upper()
             full_name = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
             
-            # Default constructor fallback if not explicitly found in current standings
-            constructor_id = 'ferrari' 
-            
-            formatted_img = generate_f1_image_url(d_id, constructor_id)
+            formatted_img = generate_f1_image_url(d_id)
             
             entry_key = code or full_name
             if entry_key not in existing_drivers:
@@ -154,7 +103,7 @@ def main():
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f"Successfully updated drivers.json with correct team asset paths.")
+    print(f"Successfully updated drivers.json with team-nested image paths.")
 
 if __name__ == '__main__':
     main()
