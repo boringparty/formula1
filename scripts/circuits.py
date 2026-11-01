@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate circuits.json by scraping F1 calendar and individual track stats."""
+"""Generate circuits.json by scraping the F1 calendar index and individual track stat pages."""
 from __future__ import annotations
 import json, os, re, time
 from datetime import datetime, timezone
@@ -29,7 +29,7 @@ DRIVER_CODE_MAP = {
 def clean(s): return re.sub(r'\s+', ' ', str(s or '')).strip()
 
 def transform_track_image(url: str) -> str:
-    """Replaces h_704 with h_200 while preserving the rest of the Cloudinary URL."""
+    """Replaces h_704 (or any height spec) with h_200 while preserving Cloudinary URL structure."""
     if not url:
         return ''
     return re.sub(r'h_\d+', 'h_200', url)
@@ -54,8 +54,30 @@ def get_previous_year_winners() -> dict:
         print(f"Warning: Could not fetch previous year winners: {e}")
     return winners
 
+def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
+    """Scrapes the main F1 calendar page to map race names/rounds to their specific subpage URLs."""
+    mapping = {}
+    try:
+        r = session.get(F1_CALENDAR_URL, timeout=TIMEOUT)
+        if r.status_code != 200:
+            return mapping
+        
+        soup = BeautifulSoup(r.text, 'html.parser')
+        # Find all anchor tags pointing to individual race subpages
+        for a in soup.select('a[href*="/en/racing/2026/"]'):
+            href = a.get('href', '')
+            # Match paths like /en/racing/2026/mexico or /en/racing/2026/australia
+            parts = [p for p in href.split('/') if p]
+            if len(parts) >= 4 and parts[-2] == str(SEASON):
+                circuit_slug = parts[-1]
+                full_url = href if href.startswith('http') else f"{F1_BASE_URL}{href}"
+                mapping[circuit_slug.lower()] = full_url
+    except Exception as e:
+        print(f"Warning: Could not extract subpage links from calendar index: {e}")
+    return mapping
+
 def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
-    """Scrapes track statistics and track image directly from circuit page."""
+    """Scrapes track statistics, fastest lap info, and track image directly from the circuit page."""
     details = {
         'circuit_length': '',
         'first_grand_prix': '',
@@ -111,9 +133,10 @@ def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
 def main():
     session = requests.Session()
     session.headers.update(HEADERS)
-    print(f"Fetching {SEASON} calendar baseline...")
+    print(f"Fetching {SEASON} calendar index and subpage links...")
 
     prev_winners = get_previous_year_winners()
+    calendar_urls = get_circuit_urls_from_calendar(session)
     
     # Fetch schedule baseline from Jolpica API
     jol_sched = session.get(f'{JOLPICA}/{SEASON}.json', timeout=TIMEOUT).json()
@@ -136,13 +159,13 @@ def main():
                 winner_code = v
                 break
 
-        # Generate standard F1 circuit slug (e.g., /en/racing/2026/mexico)
-        slug = norm_name.replace('grand prix', '').strip().replace(' ', '-')
-        circuit_page_url = f"{F1_BASE_URL}/en/racing/{SEASON}/{slug}"
+        # Resolve URL: check scraped calendar map first, otherwise construct fallback slug
+        slug = norm_name.replace('grand prix', '').replace('gp', '').strip().replace(' ', '-')
+        circuit_page_url = calendar_urls.get(c_id.lower()) or calendar_urls.get(slug) or f"{F1_BASE_URL}/en/racing/{SEASON}/{slug}"
         
-        print(f"Scraping Round {round_no}: {race_name} ({circuit_page_url})...")
+        print(f"Scraping Round {round_no}: {race_name} -> {circuit_page_url}")
         detailed_stats = parse_circuit_page(session, circuit_page_url)
-        time.sleep(0.5)
+        time.sleep(0.4)
 
         # Fallback image URL construction
         fallback_img = f"https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/{SEASON}/track/{SEASON}track{c_id}detailed.webp"
@@ -171,7 +194,7 @@ def main():
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} circuits.")
+    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} circuits and fastest lap stats.")
 
 if __name__ == '__main__':
     main()
