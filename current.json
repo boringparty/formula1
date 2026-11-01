@@ -1,15 +1,10 @@
-[
-  {
-    "driver": "",
-    "team": "",
-    "grid": "Error No results available",
-    "pos": "Error No results available",
-    "no": null,
-    "qualy": "Error No results available",
-    "laps": null,
-    "fastest_lap": null,
-    "q1": null,
-    "q2": null,
-    "q3": null
-  }
-]
+{
+  "generated_at_utc": "2026-11-01T06:47:35.067524+00:00",
+  "circuit": {
+    "circuitId": "rodriguez",
+    "circuitName": "Autódromo Hermanos Rodríguez",
+    "locality": "Mexico City",
+    "country": "Mexico"
+  },
+  "drivers": []
+}
