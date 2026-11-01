@@ -1,0 +1,40 @@
+name: F1 Season Archive
+
+on:
+  schedule:
+    - cron: "0 2 * * 1" # Mondays at 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: f1-season
+  cancel-in-progress: false
+
+jobs:
+  update-season:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run season archiver script
+        run: python scripts/season.py
+
+      - name: Commit season.json changes
+        run: |
+          if [ -z "$(git status --porcelain season.json)" ]; then
+            echo "No changes to season.json."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add season.json
+          git commit -m "Archive round data into season.json [skip ci]"
+          git push
