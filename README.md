@@ -26,25 +26,24 @@ To eliminate complex client-side matching, `current.json` normalizes driver and 
   "race_name": "Mexico City Grand Prix",
   "date": "2026-11-01",
   "time": "20:00:00Z",
-  "updated_at_utc": "2026-11-01T09:34:17.336447+00:00",
+  "updated_at_utc": "2026-11-01T11:28:09.599893+00:00",
   "drivers": [
     {
-      "driverName": "Alexander Albon",
-      "driverId": "albon",
-      "code": "ALB",
-      "constructorId": "williams",
-      "constructorName": "Williams",
-      "no": "23",
-      "grid": "16",
-      "qualy": "16",
-      "q1": "1:18.630",
-      "q2": "",
-      "q3": "",
+      "driverName": "Lewis Hamilton",
+      "driverId": "hamilton",
+      "code": "HAM",
+      "constructorId": "ferrari",
+      "constructorName": "Ferrari",
+      "no": "44",
+      "grid": "1",
+      "qualy": "1",
+      "q1": "1:17.341",
+      "q2": "1:16.953",
+      "q3": "1:16.514",
       "pos": "",
       "race": "",
       "laps": "",
       "pts": "",
       "status": ""
     }
-  ]
-}
+```
