@@ -1,89 +1,71 @@
 #!/usr/bin/env python3
-"""One-off script to backfill historical rounds 1-18 into season.json."""
+"""Archive completed race weekend snapshots into cumulative season.json."""
 from __future__ import annotations
-import json, os, subprocess
+import json, os, logging
+from datetime import datetime, timezone
 from pathlib import Path
-import requests
 
 SEASON = int(os.getenv('F1_SEASON', '2026'))
 REPO_ROOT = Path(__file__).resolve().parent.parent
-JOLPICA = 'https://api.jolpi.ca/ergast/f1'
-CURRENT_OUTPUT = REPO_ROOT / 'current.json'
+CURRENT_INPUT = Path(os.getenv('F1_CURRENT_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
+SEASON_OUTPUT = Path(os.getenv('F1_SEASON_OUTPUT_FILE', str(REPO_ROOT / 'season.json')))
 
-def fetch_json(url):
-    try:
-        r = requests.get(url, timeout=30)
-        if r.status_code == 200:
-            return r.json().get('MRData', {})
-    except Exception:
-        pass
-    return {}
+def load_season_data() -> dict:
+    if SEASON_OUTPUT.exists():
+        try:
+            return json.loads(SEASON_OUTPUT.read_text(encoding='utf-8'))
+        except Exception as e:
+            logging.warning("Could not parse existing season.json: %s", e)
+    return {
+        'season': SEASON,
+        'updated_at_utc': datetime.now(timezone.utc).isoformat(),
+        'rounds': {}
+    }
 
 def main():
-    # Fetch schedule to get race names for rounds 1-18
-    sched = fetch_json(f'{JOLPICA}/{SEASON}.json')
-    races = sched.get('RaceTable', {}).get('Races', [])
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     
-    race_lookup = {str(r.get('round')): r for r in races}
+    if not CURRENT_INPUT.exists():
+        logging.error("Source file %s does not exist. Skipping archive step.", CURRENT_INPUT)
+        return
 
-    # Loop through completed rounds up to Round 18
-    for round_no in range(1, 19):
-        r_str = str(round_no)
-        meta = race_lookup.get(r_str, {})
-        race_name = meta.get('raceName', f'Round {round_no}')
-        
-        print(f"Backfilling Round {round_no}: {race_name}...")
+    try:
+        current_data = json.loads(CURRENT_INPUT.read_text(encoding='utf-8'))
+    except Exception as e:
+        logging.error("Failed to read %s: %s", CURRENT_INPUT, e)
+        return
 
-        # Fetch qualifying and race results for this historical round
-        qual_data = fetch_json(f'{JOLPICA}/{SEASON}/{r_str}/qualifying.json')
-        qual_results = qual_data.get('RaceTable', {}).get('Races', [{}])[0].get('QualifyingResults', [])
-        qual_map = {q.get('Driver', {}).get('driverId', ''): q for q in qual_results}
+    round_no = str(current_data.get('round', ''))
+    drivers = current_data.get('drivers', [])
 
-        race_data = fetch_json(f'{JOLPICA}/{SEASON}/{r_str}/results.json')
-        race_results = race_data.get('RaceTable', {}).get('Races', [{}])[0].get('Results', [])
+    if not round_no:
+        logging.error("No valid round found in %s", CURRENT_INPUT)
+        return
 
-        drivers_data = []
-        for res in race_results:
-            d = res.get('Driver', {})
-            c = res.get('Constructor', {})
-            d_id = d.get('driverId', '')
-            q_info = qual_map.get(d_id, {})
+    # Skip archiving if race results haven't been completed yet (e.g. pos is empty)
+    has_finished_race = any(bool(d.get('pos') or d.get('race')) for d in drivers)
+    if not has_finished_race:
+        logging.info("Round %s does not contain finished race results yet. Skipping archive.", round_no)
+        return
 
-            drivers_data.append({
-                'driverName': f"{d.get('givenName', '')} {d.get('familyName', '')}".strip(),
-                'driverId': d_id,
-                'code': d.get('code') or d_id[:3].upper(),
-                'constructorId': c.get('constructorId', ''),
-                'constructorName': c.get('name', ''),
-                'no': res.get('number', ''),
-                'grid': res.get('grid', ''),
-                'qualy': q_info.get('position', ''),
-                'q1': q_info.get('Q1', ''),
-                'q2': q_info.get('Q2', ''),
-                'q3': q_info.get('Q3', ''),
-                'pos': res.get('position', ''),
-                'race': res.get('position', ''),
-                'laps': res.get('laps', ''),
-                'pts': res.get('points', ''),
-                'status': res.get('status', '')
-            })
+    season_payload = load_season_data()
+    if 'rounds' not in season_payload or not isinstance(season_payload['rounds'], dict):
+        season_payload['rounds'] = {}
 
-        payload = {
-            'season': SEASON,
-            'round': r_str,
-            'race_name': race_name,
-            'date': meta.get('date', ''),
-            'time': meta.get('time', ''),
-            'drivers': drivers_data
-        }
+    season_payload['rounds'][round_no] = {
+        'round': round_no,
+        'race_name': current_data.get('race_name', ''),
+        'date': current_data.get('date', ''),
+        'time': current_data.get('time', ''),
+        'archived_at_utc': datetime.now(timezone.utc).isoformat(),
+        'drivers': drivers
+    }
 
-        # Write to current.json temporarily
-        CURRENT_OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    season_payload['updated_at_utc'] = datetime.now(timezone.utc).isoformat()
 
-        # Run your season.py script to archive it into season.json
-        subprocess.run(['python3', 'scripts/season.py'], check=True)
-
-    print("Historical backfill complete! season.json now contains rounds 1-18.")
+    SEASON_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    SEASON_OUTPUT.write_text(json.dumps(season_payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    logging.info("Successfully archived Round %s into %s", round_no, SEASON_OUTPUT)
 
 if __name__ == '__main__':
     main()
