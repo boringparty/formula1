@@ -1,5 +1,5 @@
-#!/usr/init/env python3
-"""Build one season JSON document from Jolpica and Formula1.com."""
+#!/usr/bin/env python3
+"""Build a simplified season JSON document containing only results and circuit info."""
 from __future__ import annotations
 import argparse, json, logging, math, os, re, time
 from datetime import datetime, timedelta, timezone
@@ -209,40 +209,10 @@ def fetch_paginated(session,path,key=None):
         if not records or offset + limit >= total: break
         offset += limit
         time.sleep(DELAY)
-    return {'source':'Jolpica API','urls':source_urls,'count':sum(len(r.get('Laps',[])) + len(r.get('PitStops',[])) for r in all_records) if path.endswith(('/laps','/pitstops')) else len(all_records),'data':all_records}
-
-def extract_fastest_laps(race_record):
-    if not isinstance(race_record, dict):
-        return []
-    rows = []
-    for result in race_record.get('Results', []) or []:
-        if not isinstance(result, dict):
-            continue
-        fastest = result.get('FastestLap')
-        if not isinstance(fastest, dict):
-            continue
-        lap_time = fastest.get('Time') or {}
-        lap_time = lap_time.get('time') if isinstance(lap_time, dict) else lap_time
-        if not lap_time:
-            continue
-        driver = result.get('Driver') or {}
-        d_id = driver.get('driverId', '')
-        raw_name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
-        name = get_standardized_name(d_id, raw_name)
-        if name:
-            rows.append({'driver': name, 'fastest_lap': lap_time})
-    return rows
-
-def add_fastest_laps_by_round(jolpica_data):
-    results = jolpica_data.get('results', {}).get('data', [])
-    jolpica_data['fastest_laps_by_round'] = {
-        str(race.get('round')): extract_fastest_laps(race)
-        for race in results
-        if race.get('round') is not None
-    }
+    return {'source':'Jolpica API','urls':source_urls,'count':len(all_records),'data':all_records}
 
 def fetch_jolpica_season(session):
-    specs=[(f'{SEASON}/races',f'{SEASON}/races','RaceTable'),(f'{SEASON}/constructors',f'{SEASON}/constructors','ConstructorTable'),(f'{SEASON}/drivers',f'{SEASON}/drivers','DriverTable'),(f'{SEASON}/results',f'{SEASON}/results','RaceTable'),(f'{SEASON}/sprint',f'{SEASON}/sprint','RaceTable'),(f'{SEASON}/qualifying',f'{SEASON}/qualifying','RaceTable'),(f'{SEASON}/driverstandings',f'{SEASON}/driverstandings','StandingsTable'),(f'{SEASON}/constructorstandings',f'{SEASON}/constructorstandings','StandingsTable')]
+    specs=[(f'{SEASON}/races',f'{SEASON}/races','RaceTable'),(f'{SEASON}/results',f'{SEASON}/results','RaceTable'),(f'{SEASON}/qualifying',f'{SEASON}/qualifying','RaceTable')]
     data={}
     for name,path,key in specs:
         LOG.info('Jolpica: %s',name)
@@ -250,29 +220,6 @@ def fetch_jolpica_season(session):
         except Exception as e:
             LOG.warning('Jolpica %s failed: %s',name,e); data[name]={'source':'Jolpica API','urls':[api_url(path)],'count':0,'data':[],'error':f'{type(e).__name__}: {e}'}
         time.sleep(DELAY)
-    races=data.get('races',{}).get('data',[])
-    circuits={}
-    for race in races:
-        circuit=race.get('Circuit')
-        if isinstance(circuit,dict) and circuit.get('circuitId'):
-            circuits[circuit['circuitId']]=circuit
-    data['circuits']={'source':'Jolpica API (derived from this season race calendar)','urls':data.get('races',{}).get('urls',[]),'count':len(circuits),'data':list(circuits.values())}
-    data['pitstops_by_round']={}; data['laps_by_round']={}
-    if SKIP_ROUND_DETAILS:
-        data['round_details_skipped'] = True
-        add_fastest_laps_by_round(data)
-        return data
-    for race in races:
-        round_no=str(race.get('round','')).strip()
-        if not round_no: continue
-        for name,endpoint in [('pitstops_by_round',f'{SEASON}/{round_no}/pitstops'),('laps_by_round',f'{SEASON}/{round_no}/laps')]:
-            LOG.info('Jolpica: %s round %s (%s)',name,round_no,race.get('raceName',''))
-            try: data[name][round_no]=fetch_paginated(session,endpoint,'RaceTable')
-            except Exception as e:
-                LOG.warning('Jolpica %s round %s failed: %s',name,round_no,e)
-                data[name][round_no]={'source':'Jolpica API','urls':[api_url(endpoint)],'count':0,'data':[],'error':f'{type(e).__name__}: {e}'}
-            time.sleep(DELAY)
-    add_fastest_laps_by_round(data)
     return data
 
 def _ics_unescape(value):
@@ -377,43 +324,6 @@ def scrape_f1_page(session,url):
         r=session.get(url,timeout=TIMEOUT); r.raise_for_status(); out=parse_f1_table(r.text); out.update({'url':url,'status_code':r.status_code,'source':'Formula1.com'}); return out
     except Exception as e:return {'url':url,'source':'Formula1.com','status_code':None,'ok':False,'headers':[],'rows':[],'error':f'{type(e).__name__}: {e}'}
 
-def attach_fastest_laps_to_formula1_rows(formula1_source, jolpica_race):
-    if not isinstance(formula1_source, dict):
-        return
-    if not isinstance(jolpica_race, dict):
-        jolpica_race = {}
-    result_table = formula1_source.get('race_results')
-    if not isinstance(result_table, dict) or not isinstance(result_table.get('rows'), list):
-        return
-    by_number = {}
-    by_name = {}
-    for result in jolpica_race.get('Results', []) or []:
-        if not isinstance(result, dict):
-            continue
-        driver = result.get('Driver') or {}
-        d_id = driver.get('driverId', '')
-        raw_name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
-        std_name = get_standardized_name(d_id, raw_name)
-        
-        fastest = result.get('FastestLap') or {}
-        lap_time = fastest.get('Time') or {}
-        lap_time = lap_time.get('time') if isinstance(lap_time, dict) else lap_time
-        if not lap_time:
-            continue
-        number = clean(driver.get('permanentNumber') or driver.get('number'))
-        if number:
-            by_number[number] = lap_time or None
-        if std_name:
-            by_name[norm(std_name)] = lap_time or None
-    for row in result_table['rows']:
-        number = clean(row.get('driver_number') or row.get('no'))
-        driver_name = norm(row.get('driver') or row.get('name'))
-        if number and number in by_number:
-            row['fastest_lap'] = by_number[number]
-        else:
-            row['fastest_lap'] = by_name.get(driver_name) if driver_name else None
-    result_table['headers'] = list(dict.fromkeys(result_table.get('headers', []) + ['grid', 'fastest_lap']))
-
 def fetch_formula1_current(session,event):
     summary=event['summary'].lower(); match=next(((k,v) for k,v in sorted(RACE_URLS.items(),key=lambda p:len(p[0]),reverse=True) if k in summary),None)
     if not match:return {'ok':False,'error':f'No Formula1.com race mapping for {event["summary"]}'}
@@ -448,28 +358,25 @@ def fetch_formula1_current(session,event):
         else:
             row['grid'] = None
     result['headers'] = list(dict.fromkeys(result.get('headers', []) + ['grid']))
-
-    grid_metadata = {key: grid.get(key) for key in ('source', 'url', 'ok', 'error') if key in grid}
-    return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid_source':grid_metadata, 'starting_grid': grid}
+    return {'race_id':race_id,'slug':slug,'race_url':base,'race_results':result,'starting_grid':grid}
 
 def main(argv=None):
     global SEASON, OUTPUT, CURRENT_OUTPUT, F1_BASE, FORCE, SKIP_ROUND_DETAILS, RACE_FILTER
-    parser = argparse.ArgumentParser(description='Collect F1 season data into one JSON file.')
+    parser = argparse.ArgumentParser(description='Collect simplified season JSON.')
     parser.add_argument('--season', type=int, default=SEASON, help='season year (default: %(default)s)')
-    parser.add_argument('--output', type=Path, default=OUTPUT, help='full season JSON path (default: %(default)s)')
+    parser.add_argument('--output', type=Path, default=OUTPUT, help='simplified season JSON path (default: %(default)s)')
     parser.add_argument('--current-output', type=Path, default=CURRENT_OUTPUT, help='latest selected Grand Prix JSON path (default: %(default)s)')
     parser.add_argument('--force', action='store_true', help='scrape the latest Grand Prix outside the automatic window')
     parser.add_argument('--race', help='select a Grand Prix by name, e.g. Mexico Grand Prix')
-    parser.add_argument('--skip-round-details', action='store_true', help='skip per-round lap and pit-stop endpoints (faster smoke test)')
     args = parser.parse_args(argv)
     SEASON = args.season
     OUTPUT = args.output
     CURRENT_OUTPUT = args.current_output
     F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
     FORCE = FORCE or args.force or bool(args.race)
-    SKIP_ROUND_DETAILS = args.skip_round_details
     RACE_FILTER = args.race or ''
     logging.basicConfig(level=os.getenv('LOG_LEVEL','INFO'),format='%(asctime)s %(levelname)s %(message)s')
+    
     session=requests.Session(); session.headers.update(HEADERS); now=datetime.now(timezone.utc)
     try: events=get_calendar(session)
     except Exception as e: LOG.error('Calendar fetch failed: %s',e); return 1
@@ -477,120 +384,104 @@ def main(argv=None):
     if not event:
         LOG.info('Outside the active weekend window; no data-source requests made.')
         return 0
-    LOG.info('Selected race: %s at %s',event['summary'],event['start_utc'].isoformat())
-    
-    # 1. Build Full Season Document (season.json)
-    document={'schema_version':1,'season':SEASON,'generated_at_utc':now.isoformat(),'race_window':{'calendar_event':event['summary'],'scheduled_start_utc':event['start_utc'].isoformat(),'opens_utc':(event['start_utc'] - WEEKEND_START_BEFORE).isoformat(),'closes_utc':(event['start_utc']+CUTOFF_AFTER).isoformat(),'forced':FORCE},'sources':{}}
-    try: document['sources']['jolpica']=fetch_jolpica_season(session)
-    except Exception as e: document['sources']['jolpica']={'error':f'{type(e).__name__}: {e}'}; LOG.exception('Jolpica fetch failed')
-    document['sources']['formula1_com']=fetch_formula1_current(session,event)
-    
-    jol=document['sources'].get('jolpica',{})
-    rounds=jol.get('races',{}).get('data',[]) if isinstance(jol,dict) else []
-    result_races=jol.get('results',{}).get('data',[]) if isinstance(jol,dict) else []
-    qual_races=jol.get('qualifying',{}).get('data',[]) if isinstance(jol,dict) else []
-    sprint_races=jol.get('sprint',{}).get('data',[]) if isinstance(jol,dict) else []
-    target=norm(race_name(event['summary']))
-    
-    def find_race(records):
-        exact=next((r for r in records if norm(r.get('raceName',''))==target),None)
-        if exact is not None:
-            return exact
-        candidates=[r for r in records if norm(r.get('raceName','')) and
-                    (norm(r.get('raceName','')) in target or target in norm(r.get('raceName','')))]
-        return candidates[0] if len(candidates)==1 else None
-        
-    matched=find_race(rounds)
-    race_results=find_race(result_races)
-    if race_results is None and matched and matched.get('round'):
-        round_no=str(matched['round'])
-        try:
-            round_payload=fetch_paginated(session,f'{SEASON}/{round_no}/results','RaceTable')
-            race_results=find_race(round_payload.get('data',[]))
-            if race_results is None:
-                race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
-        except Exception as exc:
-            LOG.warning('Could not fetch selected-round results from Jolpica: %s',exc)
-            
-    if matched is None and race_results is None:
-        try:
-            schedule_payload=fetch_paginated(session,f'{SEASON}/races','RaceTable')
-            matched=find_race(schedule_payload.get('data',[]))
-            if matched and matched.get('round'):
-                round_no=str(matched['round'])
-                round_payload=fetch_paginated(session,f'{SEASON}/{round_no}/results','RaceTable')
-                race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
-        except Exception as exc:
-            LOG.warning('Selected-race Jolpica fallback failed: %s',exc)
-            
-    if matched is None and race_results is not None:
-        matched = {
-            'season': race_results.get('season', str(SEASON)),
-            'round': race_results.get('round'),
-            'raceName': race_results.get('raceName'),
-            'date': race_results.get('date'),
-            'Circuit': race_results.get('Circuit'),
-            'url': race_results.get('url'),
-            '_derived_from': 'Jolpica results fallback (race calendar metadata unavailable)',
-        }
-        
-    if matched or race_results:
-        round_no=str((matched or race_results).get('round'))
-        if race_results is None:
-            race_results=next((r for r in result_races if str(r.get('round'))==round_no and r.get('Results')),None)
-        if race_results is None:
-            try:
-                round_payload=fetch_paginated(session,f'{SEASON}/{round_no}/results','RaceTable')
-                race_results=next((r for r in round_payload.get('data',[]) if str(r.get('round'))==round_no and r.get('Results')),None)
-            except Exception as exc:
-                LOG.warning('Could not backfill selected-round results for round %s: %s',round_no,exc)
-        
-        qual_record = next((r for r in qual_races if str(r.get('round'))==round_no),None)
-        if not qual_record or not qual_record.get('QualifyingResults'):
-            try:
-                qual_payload = fetch_paginated(session, f'{SEASON}/{round_no}/qualifying', 'RaceTable')
-                qual_record = next((r for r in qual_payload.get('data', []) if str(r.get('round')) == round_no and r.get('QualifyingResults')), None)
-                if qual_record:
-                    LOG.info('Loaded round %s qualifying directly from Jolpica round endpoint.', round_no)
-            except Exception as exc:
-                LOG.warning('Could not fetch round-specific qualifying from Jolpica: %s', exc)
 
-        document['current_race']={
-            'round':round_no,
-            'race_name':(matched or race_results).get('raceName'),
-            'race_metadata':matched,
-            'results':race_results,
-            'qualifying':qual_record,
-            'sprint':next((r for r in sprint_races if str(r.get('round'))==round_no),None),
-            'pitstops':jol.get('pitstops_by_round',{}).get(round_no),
-            'laps':jol.get('laps_by_round',{}).get(round_no)
+    # Fetch clean minimalist season chunks from Jolpica
+    jol_data = fetch_jolpica_season(session)
+    races_list = jol_data.get('races', {}).get('data', [])
+    results_list = jol_data.get('results', {}).get('data', [])
+    qual_list = jol_data.get('qualifying', {}).get('data', [])
+
+    # Construct simplified season structure organized by round/race name
+    season_payload = {
+        'season': SEASON,
+        'generated_at_utc': now.isoformat(),
+        'rounds': []
+    }
+
+    # Build a lookup dictionary for results and qualifying by round number
+    results_by_round = {str(r.get('round')): r for r in results_list if r.get('round')}
+    qual_by_round = {str(q.get('round')): q for q in qual_list if q.get('round')}
+
+    for race in races_list:
+        round_no = str(race.get('round', ''))
+        race_name_str = race.get('raceName', '')
+        circuit_info = race.get('Circuit', {})
+
+        # Simplify circuit dictionary
+        clean_circuit = {
+            'circuitId': circuit_info.get('circuitId'),
+            'circuitName': circuit_info.get('circuitName'),
+            'locality': circuit_info.get('Location', {}).get('locality'),
+            'country': circuit_info.get('Location', {}).get('country'),
+            'url': circuit_info.get('url')
         }
-    else:
-        document['current_race']={
-            'round':None,
-            'race_name':race_name(event['summary']),
-            'race_metadata':None,
-            'results':None,
-            'qualifying':None,
-            'sprint':None,
-            'pitstops':None,
-            'laps':None,
-            'note':'Jolpica race results were unavailable for this run.'
-        }
-        
-    attach_fastest_laps_to_formula1_rows(document['sources'].get('formula1_com', {}), race_results)
-    
-    # Write Full Season Archive to season.json
+
+        # Extract and format results for this round if available
+        r_rec = results_by_round.get(round_no, {})
+        raw_results = r_rec.get('Results', [])
+        clean_results = []
+        for res in raw_results:
+            d = res.get('Driver', {})
+            c = res.get('Constructor', {})
+            d_id = d.get('driverId', '')
+            raw_dname = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
+            
+            clean_results.append({
+                'position': res.get('position'),
+                'points': res.get('points'),
+                'driver': get_standardized_name(d_id, raw_dname),
+                'number': res.get('number'),
+                'team': get_standardized_team(c.get('name', '')),
+                'grid': res.get('grid'),
+                'laps': res.get('laps'),
+                'status': res.get('status'),
+                'time': res.get('Time', {}).get('time') if isinstance(res.get('Time'), dict) else None
+            })
+
+        # Extract qualifying results for this round if available
+        q_rec = qual_by_round.get(round_no, {})
+        raw_qual = q_rec.get('QualifyingResults', [])
+        clean_qual = []
+        for qres in raw_qual:
+            d = qres.get('Driver', {})
+            c = qres.get('Constructor', {})
+            d_id = d.get('driverId', '')
+            raw_dname = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
+            
+            clean_qual.append({
+                'position': qres.get('position'),
+                'driver': get_standardized_name(d_id, raw_dname),
+                'team': get_standardized_team(c.get('name', '')),
+                'q1': qres.get('Q1'),
+                'q2': qres.get('Q2'),
+                'q3': qres.get('Q3')
+            })
+
+        season_payload['rounds'].append({
+            'round': round_no,
+            'race_name': race_name_str,
+            'date': race.get('date'),
+            'time': race.get('time'),
+            'circuit': clean_circuit,
+            'results': clean_results,
+            'qualifying': clean_qual
+        })
+
+    # Write Simplified season.json
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    write_json(OUTPUT, document)
-    LOG.info('Wrote full season JSON archive: %s (%d bytes)', OUTPUT, OUTPUT.stat().st_size)
+    write_json(OUTPUT, season_payload)
+    LOG.info('Wrote simplified season JSON: %s (%d bytes)', OUTPUT, OUTPUT.stat().st_size)
 
-    # 2. Build Compact Current Race Array (current.json)
-    f1_source = document.get('sources', {}).get('formula1_com', {})
-    f1_result = f1_source.get('race_results', {}) if isinstance(f1_source, dict) else {}
-    f1_starting_grid = f1_source.get('starting_grid', {}) if isinstance(f1_source, dict) else {}
-    jol_race = document.get('current_race', {})
-    jol_qual = jol_race.get('qualifying', {}) if isinstance(jol_race, dict) else {}
+    # 2. Build Compact Current Race Array (current.json) for active weekend widget
+    target=norm(race_name(event['summary']))
+    matched_round_no = None
+    for r in races_list:
+        if norm(r.get('raceName','')) == target or target in norm(r.get('raceName','')):
+            matched_round_no = str(r.get('round'))
+            break
+
+    f1_current = fetch_formula1_current(session, event)
+    f1_starting_grid = f1_current.get('starting_grid', {})
     
     grid_map_num = {}
     grid_map_name = {}
@@ -599,91 +490,60 @@ def main(argv=None):
             pos = row.get('pos') or row.get('position')
             num = str(row.get('driver_number') or row.get('no') or '').strip()
             dname = norm(row.get('driver') or row.get('name') or '')
-            if num:
-                grid_map_num[num] = pos
-            if dname:
-                grid_map_name[dname] = pos
+            if num: grid_map_num[num] = pos
+            if dname: grid_map_name[dname] = pos
 
     current_rows = []
-
-    # Priority 1: Jolpica QualifyingResults (standardized driver and constructor names)
-    if jol_qual and isinstance(jol_qual.get('QualifyingResults'), list) and jol_qual['QualifyingResults']:
-        for q in jol_qual['QualifyingResults']:
-            driver_info = q.get('Driver', {})
-            constructor = q.get('Constructor', {})
-            
-            d_id = driver_info.get('driverId', '')
-            raw_name = f"{driver_info.get('givenName', '')} {driver_info.get('familyName', '')}".strip()
-            driver_name = get_standardized_name(d_id, raw_name)
-            
-            raw_team = constructor.get('name', '')
-            team_name = get_standardized_team(raw_team)
-            
+    jol_qual_rec = qual_by_round.get(matched_round_no, {}) if matched_round_no else {}
+    
+    if jol_qual_rec and jol_qual_rec.get('QualifyingResults'):
+        for q in jol_qual_rec['QualifyingResults']:
+            d_info = q.get('Driver', {})
+            c_info = q.get('Constructor', {})
+            d_id = d_info.get('driverId', '')
+            raw_dname = f"{d_info.get('givenName', '')} {d_info.get('familyName', '')}".strip()
+            driver_name = get_standardized_name(d_id, raw_dname)
+            team_name = get_standardized_team(c_info.get('name', ''))
             num = str(q.get('number', '')).strip()
-            dname_norm = norm(driver_name)
-            
-            scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname_norm) or q.get('position')
-            qual_position = q.get('position')
+            qual_pos = q.get('position')
+            scraped_grid = grid_map_num.get(num) or grid_map_name.get(norm(driver_name)) or qual_pos
             
             current_rows.append({
                 'driver': driver_name,
                 'team': team_name,
                 'grid': scraped_grid,
-                'pos': qual_position,
+                'pos': qual_pos,
                 'no': q.get('number'),
-                'qualy': qual_position,
+                'qualy': qual_pos,
                 'q1': q.get('Q1'),
                 'q2': q.get('Q2'),
                 'q3': q.get('Q3'),
             })
-
-    # Priority 2: Formula1.com race or starting grid fallback
-    elif isinstance(f1_result, dict) and f1_result.get('rows'):
-        for row in f1_result.get('rows', []):
-            raw_dname = row.get('driver') or row.get('name') or ''
-            driver_name = get_standardized_name('', raw_dname)
-            
-            raw_team = row.get('team') or row.get('car') or ''
-            team_name = get_standardized_team(raw_team)
-            
+    elif f1_current.get('race_results', {}).get('rows'):
+        for row in f1_current['race_results']['rows']:
+            driver_name = get_standardized_name('', row.get('driver') or row.get('name'))
+            team_name = get_standardized_team(row.get('team') or row.get('car'))
             num = str(row.get('no') or row.get('driver_number') or '').strip()
-            dname = norm(driver_name)
-            scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname) or row.get('grid') or row.get('pos')
-            qual_position = row.get('pos') or row.get('position')
+            qual_pos = row.get('pos') or row.get('position')
+            scraped_grid = grid_map_num.get(num) or grid_map_name.get(norm(driver_name)) or row.get('grid') or qual_pos
             
             current_rows.append({
                 'driver': driver_name,
                 'team': team_name,
                 'grid': scraped_grid,
-                'pos': qual_position,
+                'pos': qual_pos,
                 'no': row.get('no') or row.get('driver_number'),
-                'qualy': qual_position,
+                'qualy': qual_pos,
                 'laps': row.get('laps'),
-                'time_retired': row.get('time_retired'),
-                'pts': row.get('pts'),
                 'fastest_lap': row.get('fastest_lap'),
                 'q1': row.get('q1'),
                 'q2': row.get('q2'),
                 'q3': row.get('q3'),
             })
 
-    # Write Compact Active Weekend Data to current.json
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(CURRENT_OUTPUT, current_rows)
     LOG.info('Wrote compact latest-race driver rows: %s (%d bytes)', CURRENT_OUTPUT, CURRENT_OUTPUT.stat().st_size)
-
-    jolpica = document.get('sources', {}).get('jolpica', {})
-    race_records = jolpica.get('races', {}).get('data', []) if isinstance(jolpica, dict) else []
-    result_records = jolpica.get('results', {}).get('data', []) if isinstance(jolpica, dict) else []
-    f1 = document.get('sources', {}).get('formula1_com', {})
-    f1_results_ok = bool(f1.get('race_results', {}).get('ok')) if isinstance(f1, dict) else False
-    core_data_saved = bool(race_records or result_records or f1_results_ok)
-    if not core_data_saved:
-        LOG.error('JSON was written, but no race calendar/results data was found in the core sources.')
-        return 1
-    if not race_records:
-        LOG.warning('Jolpica race metadata is empty; workflow succeeds because other core race data was saved.')
-    LOG.info('Core race data saved successfully.')
     return 0
 
 if __name__=='__main__': raise SystemExit(main())
