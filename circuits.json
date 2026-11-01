@@ -1,6 +1,6 @@
 {
   "season": 2026,
-  "generated_at_utc": "2026-11-01T08:56:29.677673+00:00",
+  "generated_at_utc": "2026-11-01T09:00:54.185575+00:00",
   "circuits": [
     {
       "round": "1",
@@ -10,6 +10,14 @@
       "locality": "Melbourne",
       "country": "Australia",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackalbert_parkdetailed.webp"
     },
     {
@@ -20,6 +28,14 @@
       "locality": "Shanghai",
       "country": "China",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackshanghaidetailed.webp"
     },
     {
@@ -30,6 +46,14 @@
       "locality": "Suzuka",
       "country": "Japan",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksuzukadetailed.webp"
     },
     {
@@ -40,6 +64,14 @@
       "locality": "Miami",
       "country": "USA",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "5.412km",
+      "first_grand_prix": "2022",
+      "number_of_laps": "57",
+      "fastest_lap": {
+        "time": "1:29.708",
+        "holder": "Max Verstappen (2023)"
+      },
+      "race_distance": "308.326km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmiamidetailed.webp"
     },
     {
@@ -50,6 +82,14 @@
       "locality": "Montreal",
       "country": "Canada",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackvilleneuvedetailed.webp"
     },
     {
@@ -60,7 +100,15 @@
       "locality": "Monte Carlo",
       "country": "Monaco",
       "previous_year_winner_code": "NOR",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmonacodetailed.webp"
+      "circuit_length": "3.337km",
+      "first_grand_prix": "1950",
+      "number_of_laps": "78",
+      "fastest_lap": {
+        "time": "1:12.909",
+        "holder": "Lewis Hamilton (2021)"
+      },
+      "race_distance": "260.286km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmontecarlodetailed.webp"
     },
     {
       "round": "7",
@@ -70,6 +118,14 @@
       "locality": "Barcelona",
       "country": "Spain",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackcatalunyadetailed.webp"
     },
     {
@@ -80,6 +136,14 @@
       "locality": "Spielberg",
       "country": "Austria",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackred_bull_ringdetailed.webp"
     },
     {
@@ -90,6 +154,14 @@
       "locality": "Silverstone",
       "country": "UK",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksilverstonedetailed.webp"
     },
     {
@@ -100,6 +172,14 @@
       "locality": "Spa",
       "country": "Belgium",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackspadetailed.webp"
     },
     {
@@ -110,6 +190,14 @@
       "locality": "Budapest",
       "country": "Hungary",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackhungaroringdetailed.webp"
     },
     {
@@ -120,6 +208,14 @@
       "locality": "Zandvoort",
       "country": "Netherlands",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackzandvoortdetailed.webp"
     },
     {
@@ -130,6 +226,14 @@
       "locality": "Monza",
       "country": "Italy",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmonzadetailed.webp"
     },
     {
@@ -140,6 +244,14 @@
       "locality": "Madrid",
       "country": "Spain",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmadringdetailed.webp"
     },
     {
@@ -150,6 +262,14 @@
       "locality": "Baku",
       "country": "Azerbaijan",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "6.003km",
+      "first_grand_prix": "2016",
+      "number_of_laps": "51",
+      "fastest_lap": {
+        "time": "1:43.009",
+        "holder": "Charles Leclerc (2019)"
+      },
+      "race_distance": "306.042km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackbakudetailed.webp"
     },
     {
@@ -160,6 +280,14 @@
       "locality": "Kuala Lumpur",
       "country": "Malaysia",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksepangdetailed.webp"
     },
     {
@@ -170,7 +298,15 @@
       "locality": "Marina Bay",
       "country": "Singapore",
       "previous_year_winner_code": "NOR",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmarina_baydetailed.webp"
+      "circuit_length": "4.927km",
+      "first_grand_prix": "2008",
+      "number_of_laps": "62",
+      "fastest_lap": {
+        "time": "1:33.808",
+        "holder": "Lewis Hamilton (2025)"
+      },
+      "race_distance": "305.337km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksingaporedetailed.webp"
     },
     {
       "round": "18",
@@ -180,7 +316,15 @@
       "locality": "Austin",
       "country": "USA",
       "previous_year_winner_code": "NOR",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackamericasdetailed.webp"
+      "circuit_length": "5.513km",
+      "first_grand_prix": "2012",
+      "number_of_laps": "56",
+      "fastest_lap": {
+        "time": "1:36.169",
+        "holder": "Charles Leclerc (2019)"
+      },
+      "race_distance": "308.432km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackaustindetailed.webp"
     },
     {
       "round": "19",
@@ -190,6 +334,14 @@
       "locality": "Mexico City",
       "country": "Mexico",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackrodriguezdetailed.webp"
     },
     {
@@ -200,6 +352,14 @@
       "locality": "São Paulo",
       "country": "Brazil",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackinterlagosdetailed.webp"
     },
     {
@@ -210,7 +370,15 @@
       "locality": "Las Vegas",
       "country": "USA",
       "previous_year_winner_code": "NOR",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackvegasdetailed.webp"
+      "circuit_length": "6.201km",
+      "first_grand_prix": "2023",
+      "number_of_laps": "50",
+      "fastest_lap": {
+        "time": "1:33.365",
+        "holder": "Max Verstappen (2025)"
+      },
+      "race_distance": "309.958km",
+      "image_url": "https://media.formula1.com/image/upload/t_16by9Centre/c_fit,w_1584/q_auto/v1740000001/trackside-images/2025/F1_Grand_Prix_of_Las_Vegas/2248012550.webp"
     },
     {
       "round": "22",
@@ -220,7 +388,15 @@
       "locality": "Lusail",
       "country": "Qatar",
       "previous_year_winner_code": "NOR",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracklosaildetailed.webp"
+      "circuit_length": "5.419km",
+      "first_grand_prix": "2021",
+      "number_of_laps": "57",
+      "fastest_lap": {
+        "time": "1:22.384",
+        "holder": "Lando Norris (2024)"
+      },
+      "race_distance": "308.611km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracklusaildetailed.webp"
     },
     {
       "round": "23",
@@ -230,6 +406,14 @@
       "locality": "Abu Dhabi",
       "country": "UAE",
       "previous_year_winner_code": "NOR",
+      "circuit_length": "",
+      "first_grand_prix": "",
+      "number_of_laps": "",
+      "fastest_lap": {
+        "time": "",
+        "holder": ""
+      },
+      "race_distance": "",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackyas_marinadetailed.webp"
     }
   ]
