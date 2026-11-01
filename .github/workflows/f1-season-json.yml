@@ -2,12 +2,11 @@ name: F1 season JSON
 
 on:
   schedule:
-    # Runs every 15 minutes to poll for session completions
     - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       force:
-        description: "Force-fetch the latest Grand Prix session now (for testing)"
+        description: "Force-fetch the latest Grand Prix session now"
         required: false
         type: boolean
         default: false
