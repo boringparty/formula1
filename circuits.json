@@ -1,6 +1,6 @@
 {
   "season": 2026,
-  "generated_at_utc": "2026-11-01T09:04:34.070253+00:00",
+  "generated_at_utc": "2026-11-01T09:09:52.373284+00:00",
   "circuits": [
     {
       "round": "1",
@@ -10,15 +10,15 @@
       "locality": "Melbourne",
       "country": "Australia",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.278km",
+      "first_grand_prix": "1996",
+      "number_of_laps": "58",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:19.813",
+        "holder": "Charles Leclerc (2024)"
       },
-      "race_distance": "",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackalbert_parkdetailed.webp"
+      "race_distance": "306.124km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmelbournedetailed.webp"
     },
     {
       "round": "2",
@@ -28,14 +28,14 @@
       "locality": "Shanghai",
       "country": "China",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.451km",
+      "first_grand_prix": "2004",
+      "number_of_laps": "56",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:32.238",
+        "holder": "Michael Schumacher (2004)"
       },
-      "race_distance": "",
+      "race_distance": "305.066km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackshanghaidetailed.webp"
     },
     {
@@ -46,14 +46,14 @@
       "locality": "Suzuka",
       "country": "Japan",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.807km",
+      "first_grand_prix": "1987",
+      "number_of_laps": "53",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:30.965",
+        "holder": "Kimi Antonelli (2025)"
       },
-      "race_distance": "",
+      "race_distance": "307.471km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksuzukadetailed.webp"
     },
     {
@@ -82,15 +82,15 @@
       "locality": "Montreal",
       "country": "Canada",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "4.361km",
+      "first_grand_prix": "1978",
+      "number_of_laps": "70",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:13.078",
+        "holder": "Valtteri Bottas (2019)"
       },
-      "race_distance": "",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackvilleneuvedetailed.webp"
+      "race_distance": "305.27km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmontrealdetailed.webp"
     },
     {
       "round": "6",
@@ -118,14 +118,14 @@
       "locality": "Barcelona",
       "country": "Spain",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "4.657km",
+      "first_grand_prix": "1991",
+      "number_of_laps": "66",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:15.743",
+        "holder": "Oscar Piastri (2025)"
       },
-      "race_distance": "",
+      "race_distance": "307.236km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackcatalunyadetailed.webp"
     },
     {
@@ -136,15 +136,15 @@
       "locality": "Spielberg",
       "country": "Austria",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "4.326km",
+      "first_grand_prix": "1970",
+      "number_of_laps": "71",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:07.924",
+        "holder": "Oscar Piastri (2025)"
       },
-      "race_distance": "",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackred_bull_ringdetailed.webp"
+      "race_distance": "307.026km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackspielbergdetailed.webp"
     },
     {
       "round": "9",
@@ -154,14 +154,14 @@
       "locality": "Silverstone",
       "country": "UK",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.891km",
+      "first_grand_prix": "1950",
+      "number_of_laps": "52",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:27.097",
+        "holder": "Max Verstappen (2020)"
       },
-      "race_distance": "",
+      "race_distance": "306.198km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksilverstonedetailed.webp"
     },
     {
@@ -172,15 +172,15 @@
       "locality": "Spa",
       "country": "Belgium",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "7.004km",
+      "first_grand_prix": "1950",
+      "number_of_laps": "44",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:44.701",
+        "holder": "Sergio Perez (2024)"
       },
-      "race_distance": "",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackspadetailed.webp"
+      "race_distance": "308.054km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackspafrancorchampsdetailed.webp"
     },
     {
       "round": "11",
@@ -190,14 +190,14 @@
       "locality": "Budapest",
       "country": "Hungary",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "4.381km",
+      "first_grand_prix": "1986",
+      "number_of_laps": "70",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:16.627",
+        "holder": "Lewis Hamilton (2020)"
       },
-      "race_distance": "",
+      "race_distance": "306.63km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackhungaroringdetailed.webp"
     },
     {
@@ -208,14 +208,14 @@
       "locality": "Zandvoort",
       "country": "Netherlands",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "4.259km",
+      "first_grand_prix": "1952",
+      "number_of_laps": "72",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:11.097",
+        "holder": "Lewis Hamilton (2021)"
       },
-      "race_distance": "",
+      "race_distance": "306.592km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackzandvoortdetailed.webp"
     },
     {
@@ -226,14 +226,14 @@
       "locality": "Monza",
       "country": "Italy",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.793km",
+      "first_grand_prix": "1950",
+      "number_of_laps": "53",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:20.901",
+        "holder": "Lando Norris (2025)"
       },
-      "race_distance": "",
+      "race_distance": "306.72km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmonzadetailed.webp"
     },
     {
@@ -244,14 +244,14 @@
       "locality": "Madrid",
       "country": "Spain",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.414km",
+      "first_grand_prix": "2026",
+      "number_of_laps": "57",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:35.587",
+        "holder": "George Russell (2026)"
       },
-      "race_distance": "",
+      "race_distance": "308.399km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmadringdetailed.webp"
     },
     {
@@ -280,15 +280,15 @@
       "locality": "Kuala Lumpur",
       "country": "Malaysia",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.543km",
+      "first_grand_prix": "1999",
+      "number_of_laps": "56",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:34.080",
+        "holder": "Sebastian Vettel (2017)"
       },
-      "race_distance": "",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksepangdetailed.webp"
+      "race_distance": "310.417km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackkualalumpurdetailed.webp"
     },
     {
       "round": "17",
@@ -334,15 +334,15 @@
       "locality": "Mexico City",
       "country": "Mexico",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "4.304km",
+      "first_grand_prix": "1963",
+      "number_of_laps": "71",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:17.774",
+        "holder": "Valtteri Bottas (2021)"
       },
-      "race_distance": "",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackrodriguezdetailed.webp"
+      "race_distance": "305.354km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmexicocitydetailed.webp"
     },
     {
       "round": "20",
@@ -352,14 +352,14 @@
       "locality": "São Paulo",
       "country": "Brazil",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "4.309km",
+      "first_grand_prix": "1973",
+      "number_of_laps": "71",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:10.540",
+        "holder": "Valtteri Bottas (2018)"
       },
-      "race_distance": "",
+      "race_distance": "305.879km",
       "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackinterlagosdetailed.webp"
     },
     {
@@ -406,15 +406,15 @@
       "locality": "Abu Dhabi",
       "country": "UAE",
       "previous_year_winner_code": "NOR",
-      "circuit_length": "",
-      "first_grand_prix": "",
-      "number_of_laps": "",
+      "circuit_length": "5.281km",
+      "first_grand_prix": "2009",
+      "number_of_laps": "58",
       "fastest_lap": {
-        "time": "",
-        "holder": ""
+        "time": "1:25.637",
+        "holder": "Kevin Magnussen (2024)"
       },
-      "race_distance": "",
-      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackyas_marinadetailed.webp"
+      "race_distance": "306.188km",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackyasmarinacircuitdetailed.webp"
     }
   ]
 }
