@@ -310,10 +310,10 @@ def attach_fastest_laps_to_formula1_rows(formula1_source, jolpica_race):
         fastest = result.get('FastestLap') or {}
         lap_time = fastest.get('Time') or {}
         lap_time = lap_time.get('time') if isinstance(lap_time, dict) else lap_time
-        number = clean(driver.get('permanentNumber') or driver.get('number'))
-        name = norm(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
-        if number:
-            by_number[number] = lap_time or None
+        if not lap_time:
+            continue
+        driver = result.get('Driver') or {}
+        name = clean(f"{driver.get('givenName', '')} {driver.get('familyName', '')}")
         if name:
             by_name[name] = lap_time or None
     for row in result_table['rows']:
@@ -513,7 +513,7 @@ def main(argv=None):
 
     current_rows = []
 
-    # Priority 1: Jolpica QualifyingResults (with Q3 -> Q2 -> Q1 fallbacks for 'qualy' / 'qf')
+    # Priority 1: Jolpica QualifyingResults (qualy set to final position)
     if jol_qual and isinstance(jol_qual.get('QualifyingResults'), list) and jol_qual['QualifyingResults']:
         for q in jol_qual['QualifyingResults']:
             driver_info = q.get('Driver', {})
@@ -524,20 +524,17 @@ def main(argv=None):
             num = str(q.get('number', '')).strip()
             dname_norm = norm(driver_name)
             
-            # Extract final qualifying lap time (Q3 -> Q2 -> Q1)
-            qualy_time = q.get('Q3') or q.get('Q2') or q.get('Q1')
-            
             # Scraped grid position from Formula1.com /starting-grid
             scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname_norm) or q.get('position')
+            qual_position = q.get('position')
             
             current_rows.append({
                 'driver': driver_name,
                 'team': constructor.get('name'),
                 'grid': scraped_grid,
-                'pos': q.get('position'),
+                'pos': qual_position,
                 'no': q.get('number'),
-                'qualy': qualy_time,
-                'qf': qualy_time,
+                'qualy': qual_position,
                 'q1': q.get('Q1'),
                 'q2': q.get('Q2'),
                 'q3': q.get('Q3'),
@@ -549,16 +546,15 @@ def main(argv=None):
             num = str(row.get('no') or row.get('driver_number') or '').strip()
             dname = norm(row.get('driver') or row.get('name') or '')
             scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname) or row.get('grid') or row.get('pos')
-            qualy_time = row.get('q3') or row.get('q2') or row.get('q1')
+            qual_position = row.get('pos') or row.get('position')
             
             current_rows.append({
                 'driver': row.get('driver') or row.get('name'),
                 'team': row.get('team') or row.get('car'),
                 'grid': scraped_grid,
-                'pos': row.get('pos') or row.get('position'),
+                'pos': qual_position,
                 'no': row.get('no') or row.get('driver_number'),
-                'qualy': qualy_time,
-                'qf': qualy_time,
+                'qualy': qual_position,
                 'laps': row.get('laps'),
                 'time_retired': row.get('time_retired'),
                 'pts': row.get('pts'),
