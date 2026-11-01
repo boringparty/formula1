@@ -1,0 +1,236 @@
+{
+  "season": 2026,
+  "generated_at_utc": "2026-11-01T08:56:29.677673+00:00",
+  "circuits": [
+    {
+      "round": "1",
+      "race_name": "Australian Grand Prix",
+      "circuitId": "albert_park",
+      "circuitName": "Albert Park Grand Prix Circuit",
+      "locality": "Melbourne",
+      "country": "Australia",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackalbert_parkdetailed.webp"
+    },
+    {
+      "round": "2",
+      "race_name": "Chinese Grand Prix",
+      "circuitId": "shanghai",
+      "circuitName": "Shanghai International Circuit",
+      "locality": "Shanghai",
+      "country": "China",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackshanghaidetailed.webp"
+    },
+    {
+      "round": "3",
+      "race_name": "Japanese Grand Prix",
+      "circuitId": "suzuka",
+      "circuitName": "Suzuka Circuit",
+      "locality": "Suzuka",
+      "country": "Japan",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksuzukadetailed.webp"
+    },
+    {
+      "round": "4",
+      "race_name": "Miami Grand Prix",
+      "circuitId": "miami",
+      "circuitName": "Miami International Autodrome",
+      "locality": "Miami",
+      "country": "USA",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmiamidetailed.webp"
+    },
+    {
+      "round": "5",
+      "race_name": "Canadian Grand Prix",
+      "circuitId": "villeneuve",
+      "circuitName": "Circuit Gilles Villeneuve",
+      "locality": "Montreal",
+      "country": "Canada",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackvilleneuvedetailed.webp"
+    },
+    {
+      "round": "6",
+      "race_name": "Monaco Grand Prix",
+      "circuitId": "monaco",
+      "circuitName": "Circuit de Monaco",
+      "locality": "Monte Carlo",
+      "country": "Monaco",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmonacodetailed.webp"
+    },
+    {
+      "round": "7",
+      "race_name": "Barcelona Grand Prix",
+      "circuitId": "catalunya",
+      "circuitName": "Circuit de Barcelona-Catalunya",
+      "locality": "Barcelona",
+      "country": "Spain",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackcatalunyadetailed.webp"
+    },
+    {
+      "round": "8",
+      "race_name": "Austrian Grand Prix",
+      "circuitId": "red_bull_ring",
+      "circuitName": "Red Bull Ring",
+      "locality": "Spielberg",
+      "country": "Austria",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackred_bull_ringdetailed.webp"
+    },
+    {
+      "round": "9",
+      "race_name": "British Grand Prix",
+      "circuitId": "silverstone",
+      "circuitName": "Silverstone Circuit",
+      "locality": "Silverstone",
+      "country": "UK",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksilverstonedetailed.webp"
+    },
+    {
+      "round": "10",
+      "race_name": "Belgian Grand Prix",
+      "circuitId": "spa",
+      "circuitName": "Circuit de Spa-Francorchamps",
+      "locality": "Spa",
+      "country": "Belgium",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackspadetailed.webp"
+    },
+    {
+      "round": "11",
+      "race_name": "Hungarian Grand Prix",
+      "circuitId": "hungaroring",
+      "circuitName": "Hungaroring",
+      "locality": "Budapest",
+      "country": "Hungary",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackhungaroringdetailed.webp"
+    },
+    {
+      "round": "12",
+      "race_name": "Dutch Grand Prix",
+      "circuitId": "zandvoort",
+      "circuitName": "Circuit Park Zandvoort",
+      "locality": "Zandvoort",
+      "country": "Netherlands",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackzandvoortdetailed.webp"
+    },
+    {
+      "round": "13",
+      "race_name": "Italian Grand Prix",
+      "circuitId": "monza",
+      "circuitName": "Autodromo Nazionale di Monza",
+      "locality": "Monza",
+      "country": "Italy",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmonzadetailed.webp"
+    },
+    {
+      "round": "14",
+      "race_name": "Spanish Grand Prix",
+      "circuitId": "madring",
+      "circuitName": "Madring",
+      "locality": "Madrid",
+      "country": "Spain",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmadringdetailed.webp"
+    },
+    {
+      "round": "15",
+      "race_name": "Azerbaijan Grand Prix",
+      "circuitId": "baku",
+      "circuitName": "Baku City Circuit",
+      "locality": "Baku",
+      "country": "Azerbaijan",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackbakudetailed.webp"
+    },
+    {
+      "round": "16",
+      "race_name": "Bahrain Grand Prix in Malaysia",
+      "circuitId": "sepang",
+      "circuitName": "Sepang International Circuit",
+      "locality": "Kuala Lumpur",
+      "country": "Malaysia",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracksepangdetailed.webp"
+    },
+    {
+      "round": "17",
+      "race_name": "Singapore Grand Prix",
+      "circuitId": "marina_bay",
+      "circuitName": "Marina Bay Street Circuit",
+      "locality": "Marina Bay",
+      "country": "Singapore",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackmarina_baydetailed.webp"
+    },
+    {
+      "round": "18",
+      "race_name": "United States Grand Prix",
+      "circuitId": "americas",
+      "circuitName": "Circuit of the Americas",
+      "locality": "Austin",
+      "country": "USA",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackamericasdetailed.webp"
+    },
+    {
+      "round": "19",
+      "race_name": "Mexico City Grand Prix",
+      "circuitId": "rodriguez",
+      "circuitName": "Autódromo Hermanos Rodríguez",
+      "locality": "Mexico City",
+      "country": "Mexico",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackrodriguezdetailed.webp"
+    },
+    {
+      "round": "20",
+      "race_name": "Brazilian Grand Prix",
+      "circuitId": "interlagos",
+      "circuitName": "Autódromo José Carlos Pace",
+      "locality": "São Paulo",
+      "country": "Brazil",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackinterlagosdetailed.webp"
+    },
+    {
+      "round": "21",
+      "race_name": "Las Vegas Grand Prix",
+      "circuitId": "vegas",
+      "circuitName": "Las Vegas Strip Street Circuit",
+      "locality": "Las Vegas",
+      "country": "USA",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackvegasdetailed.webp"
+    },
+    {
+      "round": "22",
+      "race_name": "Qatar Grand Prix",
+      "circuitId": "losail",
+      "circuitName": "Lusail International Circuit",
+      "locality": "Lusail",
+      "country": "Qatar",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracklosaildetailed.webp"
+    },
+    {
+      "round": "23",
+      "race_name": "Abu Dhabi Grand Prix",
+      "circuitId": "yas_marina",
+      "circuitName": "Yas Marina Circuit",
+      "locality": "Abu Dhabi",
+      "country": "UAE",
+      "previous_year_winner_code": "NOR",
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026trackyas_marinadetailed.webp"
+    }
+  ]
+}
