@@ -17,27 +17,10 @@ CALENDAR_URL = os.getenv('F1_CALENDAR_URL', 'https://files-f1.motorsportcalendar
 JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 F1_BASE = f'https://www.formula1.com/en/results/{SEASON}/races'
 
-# Time windows for weekend-aware tracking
-START_AFTER = timedelta(minutes=90)
-CUTOFF_AFTER = timedelta(hours=6)
-WEEKEND_START_BEFORE = timedelta(days=3)  # Active from Friday onwards
-
-TIMEOUT = 30
-DELAY = float(os.getenv('F1_REQUEST_DELAY', '0.15'))
-FORCE = os.getenv('F1_FORCE_SCRAPE', '').lower() in {'1','true','yes','on'}
-SKIP_ROUND_DETAILS = False
-RACE_FILTER = ''
-LOG = logging.getLogger('f1-json')
-HEADERS = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36','Accept-Language':'en-US,en;q=0.9','Referer':'https://www.formula1.com/'}
-RACE_URLS = {
- 'australia':(1279,'australia'),'china':(1280,'china'),'japan':(1281,'japan'),'miami':(1284,'miami'),
- 'canada':(1285,'canada'),'monaco':(1286,'monaco'),'barcelona':(1287,'barcelona-catalunya'),'catalunya':(1287,'barcelona-catalunya'),
- 'austria':(1288,'austria'),'great britain':(1289,'great-britain'),'british':(1289,'great-britain'),'belgium':(1290,'belgium'),
- 'hungary':(1291,'hungary'),'netherlands':(1292,'netherlands'),'italy':(1293,'italy'),'spain':(1294,'spain'),
- 'azerbaijan':(1295,'azerbaijan'),'singapore':(1296,'singapore'),'united states':(1297,'united-states'),'usa':(1297,'united-states'),
- 'mexico':(1298,'mexico'),'brazil':(1299,'brazil'),'sao paulo':(1299,'brazil'),'las vegas':(1300,'las-vegas'),'qatar':(1301,'qatar'),'abu dhabi':(1302,'abu-dhabi')}
-
-# Standardized preferred names mapping
+# ==========================================
+# SEASON MAPPING CONFIGURATION
+# Update these arrays as driver lineups or team names change across seasons.
+# ==========================================
 DRIVER_NAME_MAP = {
     'hamilton': 'Lewis Hamilton',
     'russell': 'George Russell',
@@ -63,28 +46,75 @@ DRIVER_NAME_MAP = {
     'bottas': 'Valtteri Bottas'
 }
 
+TEAM_NAME_MAP = {
+    'alpine': 'Alpine',
+    'alpine f1 team': 'Alpine',
+    'aston_martin': 'Aston Martin',
+    'aston martin': 'Aston Martin',
+    'audi': 'Sauber',
+    'cadillac': 'Cadillac',
+    'cadillac f1 team': 'Cadillac',
+    'ferrari': 'Ferrari',
+    'haas': 'Haas',
+    'haas f1 team': 'Haas',
+    'mclaren': 'McLaren',
+    'mercedes': 'Mercedes',
+    'rb': 'RB',
+    'rb f1 team': 'RB',
+    'alphatauri': 'RB',
+    'visa cash app rb': 'RB',
+    'red_bull': 'Red Bull',
+    'red bull': 'Red Bull',
+    'red bull racing': 'Red Bull',
+    'williams': 'Williams',
+    'sauber': 'Sauber'
+}
+# ==========================================
+
+# Time windows for weekend-aware tracking
+START_AFTER = timedelta(minutes=90)
+CUTOFF_AFTER = timedelta(hours=6)
+WEEKEND_START_BEFORE = timedelta(days=3)  # Active from Friday onwards
+
+TIMEOUT = 30
+DELAY = float(os.getenv('F1_REQUEST_DELAY', '0.15'))
+FORCE = os.getenv('F1_FORCE_SCRAPE', '').lower() in {'1','true','yes','on'}
+SKIP_ROUND_DETAILS = False
+RACE_FILTER = ''
+LOG = logging.getLogger('f1-json')
+HEADERS = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36','Accept-Language':'en-US,en;q=0.9','Referer':'https://www.formula1.com/'}
+RACE_URLS = {
+ 'australia':(1279,'australia'),'china':(1280,'china'),'japan':(1281,'japan'),'miami':(1284,'miami'),
+ 'canada':(1285,'canada'),'monaco':(1286,'monaco'),'barcelona':(1287,'barcelona-catalunya'),'catalunya':(1287,'barcelona-catalunya'),
+ 'austria':(1288,'austria'),'great britain':(1289,'great-britain'),'british':(1289,'great-britain'),'belgium':(1290,'belgium'),
+ 'hungary':(1291,'hungary'),'netherlands':(1292,'netherlands'),'italy':(1293,'italy'),'spain':(1294,'spain'),
+ 'azerbaijan':(1295,'azerbaijan'),'singapore':(1296,'singapore'),'united states':(1297,'united-states'),'usa':(1297,'united-states'),
+ 'mexico':(1298,'mexico'),'brazil':(1299,'brazil'),'sao paulo':(1299,'brazil'),'las vegas':(1300,'las-vegas'),'qatar':(1301,'qatar'),'abu dhabi':(1302,'abu-dhabi')}
+
 def clean(s): return re.sub(r'\s+',' ',str(s or '')).strip()
 def norm(s): return re.sub(r'[^a-z0-9 ]+',' ',clean(s).lower()).strip()
 
 def get_standardized_name(driver_id: str, raw_name: str) -> str:
-    """Return standardized driver name using DRIVER_NAME_MAP or fall back to cleaned raw name."""
     if driver_id and driver_id in DRIVER_NAME_MAP:
         return DRIVER_NAME_MAP[driver_id]
-    
-    # Fallback normalization matching check against normalized map keys or raw names
     norm_raw = norm(raw_name)
     for key, pref_name in DRIVER_NAME_MAP.items():
         if key.replace('_', ' ') in norm_raw or norm(pref_name) == norm_raw:
             return pref_name
-            
-    # Default cleanup (strip accents if possible or clean up spaces)
     cleaned = clean(raw_name)
-    if cleaned == 'Andrea Kimi Antonelli':
-        return 'Kimi Antonelli'
-    if cleaned == 'Nico Hülkenberg':
-        return 'Nico Hulkenberg'
-    if cleaned == 'Sergio Pérez':
-        return 'Sergio Perez'
+    if cleaned == 'Andrea Kimi Antonelli': return 'Kimi Antonelli'
+    if cleaned == 'Nico Hülkenberg': return 'Nico Hulkenberg'
+    if cleaned == 'Sergio Pérez': return 'Sergio Perez'
+    return cleaned
+
+def get_standardized_team(raw_team: str) -> str:
+    cleaned = clean(raw_team)
+    norm_team = norm(cleaned)
+    if norm_team in TEAM_NAME_MAP:
+        return TEAM_NAME_MAP[norm_team]
+    for key, pref_team in TEAM_NAME_MAP.items():
+        if key in norm_team:
+            return pref_team
     return cleaned
 
 def plain(v):
@@ -333,6 +363,9 @@ def parse_f1_table(html):
                 a=c.select_one('span.max-lg\\:hidden'); b=c.select_one('span.max-md\\:hidden')
                 raw_d = clean((a.get_text(' ',strip=True) if a else '')+' '+(b.get_text(' ',strip=True) if b else '')) or clean(c.get_text(' ',strip=True))
                 vals.append(get_standardized_name('', raw_d))
+            elif i<len(headers) and headers[i]=='team':
+                raw_t = clean(c.get_text(' ',strip=True))
+                vals.append(get_standardized_team(raw_t))
             else: vals.append(clean(c.get_text(' ',strip=True)))
         if not any(vals):continue
         row={ (headers[i].replace(' / ','_').replace(' ','_').replace('-','_') if i<len(headers) and headers[i] else f'column_{i+1}'):v for i,v in enumerate(vals)}
@@ -569,14 +602,18 @@ def main(argv=None):
 
     current_rows = []
 
-    # Priority 1: Jolpica QualifyingResults (standardized driver names & qualy position)
+    # Priority 1: Jolpica QualifyingResults (standardized driver and constructor names)
     if jol_qual and isinstance(jol_qual.get('QualifyingResults'), list) and jol_qual['QualifyingResults']:
         for q in jol_qual['QualifyingResults']:
             driver_info = q.get('Driver', {})
             constructor = q.get('Constructor', {})
+            
             d_id = driver_info.get('driverId', '')
             raw_name = f"{driver_info.get('givenName', '')} {driver_info.get('familyName', '')}".strip()
             driver_name = get_standardized_name(d_id, raw_name)
+            
+            raw_team = constructor.get('name', '')
+            team_name = get_standardized_team(raw_team)
             
             num = str(q.get('number', '')).strip()
             dname_norm = norm(driver_name)
@@ -586,7 +623,7 @@ def main(argv=None):
             
             current_rows.append({
                 'driver': driver_name,
-                'team': constructor.get('name'),
+                'team': team_name,
                 'grid': scraped_grid,
                 'pos': qual_position,
                 'no': q.get('number'),
@@ -602,6 +639,9 @@ def main(argv=None):
             raw_dname = row.get('driver') or row.get('name') or ''
             driver_name = get_standardized_name('', raw_dname)
             
+            raw_team = row.get('team') or row.get('car') or ''
+            team_name = get_standardized_team(raw_team)
+            
             num = str(row.get('no') or row.get('driver_number') or '').strip()
             dname = norm(driver_name)
             scraped_grid = grid_map_num.get(num) or grid_map_name.get(dname) or row.get('grid') or row.get('pos')
@@ -609,7 +649,7 @@ def main(argv=None):
             
             current_rows.append({
                 'driver': driver_name,
-                'team': row.get('team') or row.get('car'),
+                'team': team_name,
                 'grid': scraped_grid,
                 'pos': qual_position,
                 'no': row.get('no') or row.get('driver_number'),
