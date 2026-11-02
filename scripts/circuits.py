@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate circuits.json by scraping the F1 calendar index and individual track stat pages, including event schedules."""
+"""Generate circuits.json by scraping the F1 calendar index and individual track stat pages, including normalized session structures."""
 from __future__ import annotations
 import json, os, re, time
 from datetime import datetime, timezone
@@ -33,7 +33,7 @@ STREET_CIRCUITS = {
 def clean(s): return re.sub(r'\s+', ' ', str(s or '')).strip()
 
 def transform_track_image(url: str) -> str:
-    """Replaces h_704 (or any height spec) with h_200 while preserving Cloudinary URL structure."""
+    """Replaces height specs with h_200 while preserving URL structure."""
     if not url:
         return ''
     return re.sub(r'h_\d+', 'h_200', url)
@@ -55,6 +55,8 @@ def to_bold_sans(text: str) -> str:
 
 def fmt_session(sess: dict) -> str:
     """Formats session date and time to MM-DD HH:MM (UTC)."""
+    if not isinstance(sess, dict):
+        return ''
     d = sess.get('date')
     t = sess.get('time')
     if not d or not t:
@@ -82,7 +84,7 @@ def get_previous_year_winners() -> dict:
     return winners
 
 def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
-    """Scrapes the main F1 calendar page using a.group to map race slugs to specific subpage URLs."""
+    """Scrapes the main F1 calendar page to map race slugs to specific URLs."""
     mapping = {}
     try:
         r = session.get(F1_CALENDAR_URL, timeout=TIMEOUT)
@@ -103,7 +105,7 @@ def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
     return mapping
 
 def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
-    """Scrapes track statistics, fastest lap info, and track image directly from the circuit page."""
+    """Scrapes track statistics, fastest lap info, and track image from the circuit page."""
     details = {
         'circuit_length': '',
         'first_grand_prix': '',
@@ -212,18 +214,36 @@ def main():
 
         fallback_img = f"https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/{SEASON}/track/{SEASON}track{c_id}detailed.webp"
 
-        # Session schedule formatting
-        p1 = fmt_session(race.get('FirstPractice', {}))
-        p2 = fmt_session(race.get('SecondPractice', {}))
-        p3 = fmt_session(race.get('ThirdPractice', {}))
-        quali = fmt_session(race.get('Qualifying', {}))
-        gp = fmt_session(race.get('Race', {}))
-        
+        # Determine Sprint vs Normal structure
         is_sprint = bool(race.get('Sprint') or race.get('SprintQualifying'))
-        sprint_str = "Sprint" if is_sprint else ""
+        event_type = "sprint" if is_sprint else "normal"
+
+        if is_sprint:
+            session_1 = fmt_session(race.get('FirstPractice', {}))
+            session_1_type = "freePractice1"
+            
+            # Sprint Qualifying key varies slightly across Ergast/Jolpica endpoints
+            sprint_qual = race.get('SprintQualifying') or race.get('SprintShootout') or race.get('SecondPractice', {})
+            session_2 = fmt_session(sprint_qual)
+            session_2_type = "sprintQualifying"
+            
+            session_3 = fmt_session(race.get('Sprint', {}))
+            session_3_type = "sprint"
+        else:
+            session_1 = fmt_session(race.get('FirstPractice', {}))
+            session_1_type = "freePractice1"
+            
+            session_2 = fmt_session(race.get('SecondPractice', {}))
+            session_2_type = "freePractice2"
+            
+            session_3 = fmt_session(race.get('ThirdPractice', {}))
+            session_3_type = "freePractice3"
+
+        qualifying = fmt_session(race.get('Qualifying', {}))
+        grandprix = fmt_session(race.get('Race', {}))
+        
         track_type = "Street" if c_id in STREET_CIRCUITS else ""
 
-        # Construct stylized name prefix
         country_prefix = country
         if country == 'Australia': country_prefix = 'Australian'
         elif country == 'China': country_prefix = 'Chinese'
@@ -263,13 +283,16 @@ def main():
             'circuitId': c_id,
             'circuitName': circuit_name,
             'stylized_name': stylized_name,
-            'sprint': sprint_str,
+            'eventType': event_type,
             'type': track_type,
-            'practice_1': p1,
-            'practice_2': p2,
-            'practice_3': p3,
-            'qualifying': quali,
-            'grand_prix': gp,
+            'session_1': session_1,
+            'session_1_type': session_1_type,
+            'session_2': session_2,
+            'session_2_type': session_2_type,
+            'session_3': session_3,
+            'session_3_type': session_3_type,
+            'qualifying': qualifying,
+            'grandprix': grandprix,
             'circuit_title': circuit_title,
             'previous_year_winner_code': winner_code,
             'circuit_length': detailed_stats['circuit_length'],
@@ -288,7 +311,7 @@ def main():
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} fully populated circuits including event schedules.")
+    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} fully populated circuits matching the grid layout format.")
 
 if __name__ == '__main__':
     main()
