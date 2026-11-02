@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate circuits.json by scraping the F1 calendar index (via a.group) and individual track stat pages."""
+"""Generate circuits.json by scraping the F1 calendar index and individual track stat pages, including event schedules."""
 from __future__ import annotations
 import json, os, re, time
 from datetime import datetime, timezone
@@ -26,6 +26,10 @@ DRIVER_CODE_MAP = {
     'antonelli': 'ANT', 'bortoleto': 'BOR', 'hadjar': 'HAD', 'lawson': 'LAW'
 }
 
+STREET_CIRCUITS = {
+    'albert_park', 'miami', 'villeneuve', 'monaco', 'baku', 'singapore', 'vegas', 'madring'
+}
+
 def clean(s): return re.sub(r'\s+', ' ', str(s or '')).strip()
 
 def transform_track_image(url: str) -> str:
@@ -33,6 +37,29 @@ def transform_track_image(url: str) -> str:
     if not url:
         return ''
     return re.sub(r'h_\d+', 'h_200', url)
+
+def to_bold_sans(text: str) -> str:
+    """Converts normal text to Bold Sans-Serif Unicode characters."""
+    out = []
+    for c in text:
+        code = ord(c)
+        if ord('A') <= code <= ord('Z'):
+            out.append(chr(0x1D5A0 + (code - ord('A'))))
+        elif ord('a') <= code <= ord('z'):
+            out.append(chr(0x1D5BA + (code - ord('a'))))
+        elif ord('0') <= code <= ord('9'):
+            out.append(chr(0x1D7EC + (code - ord('0'))))
+        else:
+            out.append(c)
+    return ''.join(out)
+
+def fmt_session(sess: dict) -> str:
+    """Formats session date and time to MM-DD HH:MM (UTC)."""
+    d = sess.get('date')
+    t = sess.get('time')
+    if not d or not t:
+        return ''
+    return f"{d[5:7]}-{d[8:10]} {t[:5]}"
 
 def get_previous_year_winners() -> dict:
     """Fetch previous season race winners mapped by normalized race name."""
@@ -65,7 +92,7 @@ def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
         soup = BeautifulSoup(r.text, 'html.parser')
         for a in soup.select('a.group'):
             href = a.get('href', '')
-            if '/en/racing/2026/' in href and 'testing' not in href:
+            if f'/en/racing/{SEASON}/' in href and 'testing' not in href:
                 parts = [p for p in href.split('/') if p]
                 if parts:
                     slug = parts[-1].lower()
@@ -92,12 +119,10 @@ def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
 
         soup = BeautifulSoup(r.text, 'html.parser')
 
-        # 1. Scrape Track Image URL
         img_tag = soup.select_one('div img[src*="track"]')
         if img_tag and img_tag.get('src'):
             details['image_url'] = transform_track_image(img_tag['src'])
 
-        # 2. Parse dl/dt/dd Track Details Grid
         dl = soup.select_one('dl')
         if dl:
             containers = dl.select('div')
@@ -137,7 +162,6 @@ def main():
     prev_winners = get_previous_year_winners()
     calendar_urls = get_circuit_urls_from_calendar(session)
     
-    # Fallback explicit mapping if any index lookup fails
     fallback_mapping = {
         'albert_park': 'australia', 'shanghai': 'china', 'suzuka': 'japan',
         'miami': 'miami', 'villeneuve': 'canada', 'monaco': 'monaco',
@@ -156,10 +180,15 @@ def main():
 
     for race in races:
         round_no = race.get('round')
+        round_str = f"{int(round_no):02d}" if str(round_no).isdigit() else str(round_no)
         race_name = race.get('raceName')
         circuit = race.get('Circuit', {})
         c_id = circuit.get('circuitId', '').lower()
         loc = circuit.get('Location', {})
+        
+        country = loc.get('country', '')
+        city = loc.get('locality', '')
+        circuit_name = circuit.get('circuitName', '')
         
         norm_name = clean(race_name).lower()
         winner_code = None
@@ -168,7 +197,6 @@ def main():
                 winner_code = v
                 break
 
-        # Resolve exact URL from calendar scraper or fallback dictionary
         sub_slug = calendar_urls.get(fallback_mapping.get(c_id, '')) or fallback_mapping.get(c_id)
         if sub_slug and not sub_slug.startswith('http'):
             circuit_page_url = f"{F1_BASE_URL}/en/racing/{SEASON}/{sub_slug}"
@@ -184,13 +212,65 @@ def main():
 
         fallback_img = f"https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/{SEASON}/track/{SEASON}track{c_id}detailed.webp"
 
+        # Session schedule formatting
+        p1 = fmt_session(race.get('FirstPractice', {}))
+        p2 = fmt_session(race.get('SecondPractice', {}))
+        p3 = fmt_session(race.get('ThirdPractice', {}))
+        quali = fmt_session(race.get('Qualifying', {}))
+        gp = fmt_session(race.get('Race', {}))
+        
+        is_sprint = bool(race.get('Sprint') or race.get('SprintQualifying'))
+        sprint_str = "Sprint" if is_sprint else ""
+        track_type = "Street" if c_id in STREET_CIRCUITS else ""
+
+        # Construct stylized name prefix
+        country_prefix = country
+        if country == 'Australia': country_prefix = 'Australian'
+        elif country == 'China': country_prefix = 'Chinese'
+        elif country == 'Japan': country_prefix = 'Japanese'
+        elif country == 'Canada': country_prefix = 'Canadian'
+        elif country == 'Spain': country_prefix = 'Spanish' if 'Catalunya' in circuit_name else 'Spain'
+        elif country == 'Austria': country_prefix = 'Austrian'
+        elif country == 'United Kingdom': country_prefix = 'British'
+        elif country == 'Belgium': country_prefix = 'Belgian'
+        elif country == 'Hungary': country_prefix = 'Hungarian'
+        elif country == 'Netherlands': country_prefix = 'Dutch'
+        elif country == 'Italy': country_prefix = 'Italian'
+        elif country == 'Mexico': country_prefix = 'Mexican'
+        elif country == 'Brazil': country_prefix = 'Brazilian'
+        elif country == 'United States': country_prefix = 'Miami' if 'Miami' in race_name else ('United States' if 'Americas' in circuit_name else 'Las Vegas')
+
+        track_short_name = circuit_name
+        if c_id == 'albert_park': track_short_name = 'Albert Park'
+        elif c_id == 'suzuka': track_short_name = 'Suzuka'
+        elif c_id == 'monaco': track_short_name = 'Monaco'
+        elif c_id == 'hungaroring': track_short_name = 'Hungaroring'
+        elif c_id == 'zandvoort': track_short_name = 'Zandvoort'
+        elif c_id == 'monza': track_short_name = 'Monza'
+        elif c_id == 'singapore': track_short_name = 'Singapore'
+        elif c_id == 'interlagos': track_short_name = 'Interlagos'
+        elif c_id == 'yas_marina': track_short_name = 'Yas Marina'
+
+        plain_stylized = f"{country_prefix} - {track_short_name}"
+        stylized_name = to_bold_sans(plain_stylized)
+        circuit_title = f"{race_name} - {circuit_name}"
+
         circuits_data.append({
-            'round': round_no,
+            'round': round_str,
             'race_name': race_name,
+            'city': city,
+            'country': country,
             'circuitId': c_id,
-            'circuitName': circuit.get('circuitName'),
-            'locality': loc.get('locality'),
-            'country': loc.get('country'),
+            'circuitName': circuit_name,
+            'stylized_name': stylized_name,
+            'sprint': sprint_str,
+            'type': track_type,
+            'practice_1': p1,
+            'practice_2': p2,
+            'practice_3': p3,
+            'qualifying': quali,
+            'grand_prix': gp,
+            'circuit_title': circuit_title,
             'previous_year_winner_code': winner_code,
             'circuit_length': detailed_stats['circuit_length'],
             'first_grand_prix': detailed_stats['first_grand_prix'],
@@ -208,7 +288,7 @@ def main():
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} fully populated circuits.")
+    print(f"Successfully generated {OUTPUT} with {len(circuits_data)} fully populated circuits including event schedules.")
 
 if __name__ == '__main__':
     main()
