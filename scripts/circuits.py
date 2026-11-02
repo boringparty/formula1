@@ -17,10 +17,12 @@ F1_CALENDAR_URL = f'{F1_BASE_URL}/en/racing/{SEASON}'
 
 ICS_FILE = Path(os.getenv('F1_ICS_FILE', str(REPO_ROOT / 'data' / 'calendar.ics')))
 ICS_URL = os.getenv('F1_ICS_URL', 'https://raw.githubusercontent.com/boringparty/formula1/refs/heads/main/data/calendar.ics')
-WEEKEND_GAP = timedelta(days=4)
 
 TIMEOUT = 30
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
+
+# All session times are written in UTC (the calendar's own times), as yyyy-mm-dd hh:mm
+DATE_FMT = '%Y-%m-%d %H:%M'
 
 DRIVER_CODE_MAP = {
     'max_verstappen': 'VER', 'hamilton': 'HAM', 'russell': 'RUS', 'leclerc': 'LEC',
@@ -31,15 +33,47 @@ DRIVER_CODE_MAP = {
 }
 
 STREET_CIRCUITS = {
-    'albert_park', 'miami', 'villeneuve', 'monaco', 'baku', 'singapore', 'vegas', 'madring'
+    'albert_park', 'miami', 'villeneuve', 'monaco', 'baku', 'marina_bay', 'vegas', 'madring'
 }
 
+# Keyed by the race name exactly as it appears in the calendar (lower-case, inside the brackets of
+# "F1: Grand Prix (Mexico City Grand Prix)").
+# Value: (circuitId, circuit name, city, country, [formula1.com /en/racing/<season>/<slug> candidates])
+CIRCUITS = {
+    'australian grand prix':          ('albert_park',  'Albert Park Circuit',                'Melbourne',   'Australia',            ['australia']),
+    'chinese grand prix':             ('shanghai',     'Shanghai International Circuit',     'Shanghai',    'China',                ['china']),
+    'japanese grand prix':            ('suzuka',       'Suzuka International Racing Course', 'Suzuka',      'Japan',                ['japan']),
+    'miami grand prix':               ('miami',        'Miami International Autodrome',      'Miami',       'United States',        ['miami']),
+    'canadian grand prix':            ('villeneuve',   'Circuit Gilles Villeneuve',          'Montreal',    'Canada',               ['canada']),
+    'monaco grand prix':              ('monaco',       'Circuit de Monaco',                  'Monte Carlo', 'Monaco',               ['monaco']),
+    'barcelona-catalunya grand prix': ('catalunya',    'Circuit de Barcelona-Catalunya',     'Barcelona',   'Spain',                ['barcelona-catalunya']),
+    'austrian grand prix':            ('red_bull_ring','Red Bull Ring',                      'Spielberg',   'Austria',              ['austria']),
+    'british grand prix':             ('silverstone',  'Silverstone Circuit',                'Silverstone', 'United Kingdom',       ['great-britain']),
+    'belgian grand prix':             ('spa',          'Circuit de Spa-Francorchamps',       'Spa',         'Belgium',              ['belgium']),
+    'hungarian grand prix':           ('hungaroring',  'Hungaroring',                        'Budapest',    'Hungary',              ['hungary']),
+    'dutch grand prix':               ('zandvoort',    'Circuit Zandvoort',                  'Zandvoort',   'Netherlands',          ['netherlands']),
+    'italian grand prix':             ('monza',        'Autodromo Nazionale Monza',          'Monza',       'Italy',                ['italy']),
+    'spanish grand prix':             ('madring',      'Madring',                            'Madrid',      'Spain',                ['spain']),
+    'azerbaijan grand prix':          ('baku',         'Baku City Circuit',                  'Baku',        'Azerbaijan',           ['azerbaijan']),
+    'bahrain grand prix (malaysia)':  ('sepang',       'Sepang International Circuit',       'Sepang',      'Malaysia',             ['bahrain']),
+    'singapore grand prix':           ('marina_bay',   'Marina Bay Street Circuit',          'Singapore',   'Singapore',            ['singapore']),
+    'united states grand prix':       ('americas',     'Circuit of the Americas',            'Austin',      'United States',        ['united-states']),
+    'mexico city grand prix':         ('rodriguez',    'Autódromo Hermanos Rodríguez',       'Mexico City', 'Mexico',               ['mexico']),
+    'brazilian grand prix':           ('interlagos',   'Autódromo José Carlos Pace',         'São Paulo',   'Brazil',               ['brazil']),
+    'las vegas grand prix':           ('vegas',        'Las Vegas Strip Circuit',            'Las Vegas',   'United States',        ['las-vegas']),
+    'qatar grand prix':               ('losail',       'Lusail International Circuit',       'Lusail',      'Qatar',                ['qatar']),
+    'abu dhabi grand prix':           ('yas_marina',   'Yas Marina Circuit',                 'Abu Dhabi',   'United Arab Emirates', ['abu-dhabi', 'united-arab-emirates']),
+}
+
+
 def clean(s): return re.sub(r'\s+', ' ', str(s or '')).strip()
+
 
 def transform_track_image(url: str) -> str:
     if not url:
         return ''
     return re.sub(r'h_\d+', 'h_200', url)
+
 
 def to_bold_sans(text: str) -> str:
     out = []
@@ -55,12 +89,32 @@ def to_bold_sans(text: str) -> str:
             out.append(c)
     return ''.join(out)
 
+
 def fmt_ics_dt(dt: datetime | None) -> str:
+    """yyyy-mm-dd hh:mm (UTC), or '' when the session isn't in the calendar."""
     if not dt:
         return ''
-    return dt.strftime('%m-%d %H:%M')
+    return dt.astimezone(timezone.utc).strftime(DATE_FMT)
+
+
+def race_name_from_summary(summary: str) -> str:
+    """'F1: Grand Prix (Bahrain Grand Prix (Malaysia))' -> 'Bahrain Grand Prix (Malaysia)'."""
+    m = re.search(r'\((.*)\)\s*$', summary or '')
+    return clean(m.group(1)) if m else clean(summary)
+
+
+def lookup_circuit(race_name: str) -> tuple[str, str, str, str, list[str]]:
+    info = CIRCUITS.get(race_name.lower())
+    if info:
+        return info
+    print(f"Warning: no CIRCUITS entry for '{race_name}'; add it to the table in circuits.py")
+    slug = re.sub(r'[^a-z0-9]+', '-', race_name.lower().replace('grand prix', '')).strip('-')
+    return ('', race_name, '', '', [slug] if slug else [])
+
 
 def get_previous_year_winners() -> dict:
+    """{circuitId: winner code} for last season. Keyed by circuit, not race name, because names change
+    (e.g. 'Brazilian' vs 'São Paulo') and a venue that wasn't used last year (Madring) must stay empty."""
     winners = {}
     try:
         url = f'{JOLPICA}/{PREV_SEASON}/results/1.json?limit=100'
@@ -68,16 +122,17 @@ def get_previous_year_winners() -> dict:
         data = r.json()
         races = data.get('MRData', {}).get('RaceTable', {}).get('Races', [])
         for race in races:
-            rname = clean(race.get('raceName', '')).lower()
+            cid = race.get('Circuit', {}).get('circuitId', '')
             results = race.get('Results', [])
-            if results:
+            if cid and results:
                 driver = results[0].get('Driver', {})
                 d_id = driver.get('driverId', '')
                 code = driver.get('code') or DRIVER_CODE_MAP.get(d_id, driver.get('familyName', '???')[:3].upper())
-                winners[rname] = code
+                winners[cid] = code
     except Exception as e:
         print(f"Warning: Could not fetch previous year winners: {e}")
     return winners
+
 
 def load_ics_text() -> str:
     if ICS_FILE.is_file():
@@ -90,6 +145,7 @@ def load_ics_text() -> str:
         pass
     return ''
 
+
 def _parse_ics_dt(value: str, params: str) -> datetime | None:
     value = value.strip()
     try:
@@ -101,6 +157,7 @@ def _parse_ics_dt(value: str, params: str) -> datetime | None:
         return dt.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
+
 
 def fetch_ics_weekends() -> list[dict]:
     raw = load_ics_text()
@@ -131,7 +188,7 @@ def fetch_ics_weekends() -> list[dict]:
                 m = re.search(r'#(GP\d+)_\d+_(\w+)', val)
                 if m:
                     cur['weekend'], cur['session'] = m.group(1), m.group(2).lower()
-    
+
     events = [e for e in events if e.get('start') and e.get('end')]
     events.sort(key=lambda e: e['start'])
 
@@ -147,8 +204,8 @@ def fetch_ics_weekends() -> list[dict]:
         weekends_map[wk]['start'] = min(weekends_map[wk]['start'], e['start'])
         weekends_map[wk]['end'] = max(weekends_map[wk]['end'], e['end'])
 
-    sorted_weekends = sorted(weekends_map.values(), key=lambda w: w['start'])
-    return sorted_weekends
+    return sorted(weekends_map.values(), key=lambda w: w['start'])
+
 
 def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
     mapping = {}
@@ -168,6 +225,7 @@ def get_circuit_urls_from_calendar(session: requests.Session) -> dict:
     except Exception as e:
         print(f"Warning: Could not extract subpage links: {e}")
     return mapping
+
 
 def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
     details = {
@@ -198,6 +256,7 @@ def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
         print(f"Warning: Failed to parse circuit page {page_url}: {e}")
     return details
 
+
 def main():
     session = requests.Session()
     session.headers.update(HEADERS)
@@ -207,96 +266,58 @@ def main():
     calendar_urls = get_circuit_urls_from_calendar(session)
     weekends = fetch_ics_weekends()
 
-    fallback_mapping = {
-        'albert_park': 'australia', 'shanghai': 'china', 'suzuka': 'japan',
-        'miami': 'miami', 'villeneuve': 'canada', 'monaco': 'monaco',
-        'catalunya': 'barcelona-catalunya', 'red_bull_ring': 'austria',
-        'silverstone': 'great-britain', 'spa': 'belgium', 'hungaroring': 'hungary',
-        'zandvoort': 'netherlands', 'monza': 'italy', 'madring': 'spain',
-        'baku': 'azerbaijan', 'sepang': 'bahrain', 'marina_bay': 'singapore',
-        'americas': 'united-states', 'rodriguez': 'mexico', 'interlagos': 'brazil',
-        'vegas': 'las-vegas', 'losail': 'qatar', 'yas_marina': 'united-arab-emirates'
-    }
-
     circuits_data = []
 
     for idx, w in enumerate(weekends, start=1):
         round_str = f"{idx:02d}"
-        
-        # Categorize events from ICS
-        sessions_dict = {}
-        race_title_raw = ""
-        for e in w['events']:
-            s_type = e.get('session', '')
-            summary = e.get('summary', '')
-            if 'grand prix' in summary.lower() or 'gp' in summary.lower():
-                race_title_raw = summary
-            sessions_dict[s_type] = e
+
+        # Index this weekend's sessions by the UID suffix (fp1, fp2, fp3, sprintqualifying, sprint, qualifying, gp)
+        sessions_dict = {e.get('session', ''): e for e in w['events']}
+
+        def start_of(*keys):
+            for k in keys:
+                if k in sessions_dict:
+                    return sessions_dict[k].get('start')
+            return None
 
         is_sprint = 'sprint' in sessions_dict or 'sprintqualifying' in sessions_dict
         eventType = "sprint" if is_sprint else "normal"
 
-        # Extract session timings
-        fp1 = sessions_dict.get('practice_1') or sessions_dict.get('practice1') or sessions_dict.get('fp1')
-        fp2 = sessions_dict.get('practice_2') or sessions_dict.get('practice2') or sessions_dict.get('fp2')
-        fp3 = sessions_dict.get('practice_3') or sessions_dict.get('practice3') or sessions_dict.get('fp3')
-        sprint_qual = sessions_dict.get('sprintqualifying') or sessions_dict.get('sprint_qualifying')
-        sprint_race = sessions_dict.get('sprint')
-        qualifying = sessions_dict.get('qualifying')
-        race_sess = sessions_dict.get('race')
+        # Race name comes from the bracketed part of the race session's title
+        race_event = sessions_dict.get('gp') or sessions_dict.get('race') or w['events'][0]
+        race_name = race_name_from_summary(race_event.get('summary', '')) or f"Round {round_str} Grand Prix"
+        c_id, circuit_name, city, country, slugs = lookup_circuit(race_name)
 
-        session_1 = fmt_ics_dt(fp1.get('start') if fp1 else None)
+        session_1 = fmt_ics_dt(start_of('fp1', 'practice1', 'practice_1'))
         session_1_type = "freePractice1"
 
         if is_sprint:
-            session_2 = fmt_ics_dt(sprint_qual.get('start') if sprint_qual else (fp2.get('start') if fp2 else None))
+            session_2 = fmt_ics_dt(start_of('sprintqualifying', 'sprint_qualifying', 'fp2', 'practice2', 'practice_2'))
             session_2_type = "sprintQualifying"
-            session_3 = fmt_ics_dt(sprint_race.get('start') if sprint_race else None)
+            session_3 = fmt_ics_dt(start_of('sprint'))
             session_3_type = "sprint"
         else:
-            session_2 = fmt_ics_dt(fp2.get('start') if fp2 else None)
+            session_2 = fmt_ics_dt(start_of('fp2', 'practice2', 'practice_2'))
             session_2_type = "freePractice2"
-            session_3 = fmt_ics_dt(fp3.get('start') if fp3 else None)
+            session_3 = fmt_ics_dt(start_of('fp3', 'practice3', 'practice_3'))
             session_3_type = "freePractice3"
 
-        qual_time = fmt_ics_dt(qualifying.get('start') if qualifying else None)
-        grandprix_time = fmt_ics_dt(race_sess.get('start') if race_sess else None)
+        qual_time = fmt_ics_dt(start_of('qualifying'))
+        grandprix_time = fmt_ics_dt(start_of('gp', 'race'))
 
-        # Derive race & circuit names from ICS summary or fallback
-        race_name = race_title_raw if race_title_raw else f"Round {round_str} Grand Prix"
-        # Guess circuit info based on summary or lookup
-        circuit_name = race_name.split(' - ')[-1] if ' - ' in race_name else race_name
-        
-        # Infer circuit ID from race name or summary keywords
-        c_id = 'albert_park'
-        summary_blob = race_name.lower()
-        for known_id in fallback_mapping.keys():
-            if known_id in summary_blob or fallback_mapping[known_id] in summary_blob:
-                c_id = known_id
+        # Circuit stats page: prefer the real link from the formula1.com calendar, else build it
+        print(f"Parsing ICS Round {round_str}: {race_name} ({c_id or 'unknown circuit'})")
+        detailed_stats = None
+        for slug in slugs:
+            page_url = calendar_urls.get(slug) or f"{F1_BASE_URL}/en/racing/{SEASON}/{slug}"
+            detailed_stats = parse_circuit_page(session, page_url)
+            time.sleep(0.3)
+            if detailed_stats['circuit_length'] or detailed_stats['image_url']:
                 break
-
-        sub_slug = calendar_urls.get(fallback_mapping.get(c_id, '')) or fallback_mapping.get(c_id)
-        if sub_slug and not sub_slug.startswith('http'):
-            circuit_page_url = f"{F1_BASE_URL}/en/racing/{SEASON}/{sub_slug}"
-        elif sub_slug:
-            circuit_page_url = sub_slug
-        else:
-            circuit_page_url = f"{F1_BASE_URL}/en/racing/{SEASON}"
-
-        print(f"Parsing ICS Round {round_str}: {race_name}")
-        detailed_stats = parse_circuit_page(session, circuit_page_url)
-        time.sleep(0.3)
+        if detailed_stats is None:
+            detailed_stats = parse_circuit_page(session, f"{F1_BASE_URL}/en/racing/{SEASON}")
 
         fallback_img = f"https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/{SEASON}/track/{SEASON}track{c_id}detailed.webp"
-
-        country = "Unknown"
-        city = "Unknown"
-        for k, v in fallback_mapping.items():
-            if k == c_id:
-                country = v.replace('-', ' ').title()
-                break
-
-        winner_code = prev_winners.get(race_name.lower())
 
         circuits_data.append({
             'round': round_str,
@@ -317,7 +338,7 @@ def main():
             'qualifying': qual_time,
             'grandprix': grandprix_time,
             'circuit_title': race_name,
-            'previous_year_winner_code': winner_code,
+            'previous_year_winner_code': prev_winners.get(c_id),
             'circuit_length': detailed_stats['circuit_length'],
             'first_grand_prix': detailed_stats['first_grand_prix'],
             'number_of_laps': detailed_stats['number_of_laps'],
@@ -335,6 +356,7 @@ def main():
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(f"Successfully generated {OUTPUT} directly from calendar.ics with {len(circuits_data)} circuits.")
+
 
 if __name__ == '__main__':
     main()
