@@ -1,13 +1,13 @@
 {
   "season": 2026,
-  "updated_at_utc": "2026-11-02T04:19:04.046097+00:00",
+  "updated_at_utc": "2026-11-02T08:53:44.061868+00:00",
   "rounds": {
     "19": {
       "round": "19",
       "race_name": "Mexico City Grand Prix",
       "date": "2026-11-01",
       "time": "20:00:00Z",
-      "archived_at_utc": "2026-11-02T04:19:04.046082+00:00",
+      "archived_at_utc": "2026-11-02T08:53:44.061852+00:00",
       "drivers": [
         {
           "driverName": "Max Verstappen",
