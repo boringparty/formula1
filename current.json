@@ -4,7 +4,7 @@
   "race_name": "Mexico City Grand Prix",
   "date": "2026-11-01",
   "time": "20:00:00Z",
-  "updated_at_utc": "2026-11-02T00:01:30.329859+00:00",
+  "updated_at_utc": "2026-11-02T01:35:58.453958+00:00",
   "drivers": [
     {
       "driverName": "Lewis Hamilton",
@@ -18,11 +18,11 @@
       "q1": "1:17.341",
       "q2": "1:16.953",
       "q3": "1:16.514",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "2",
+      "race": "2",
+      "laps": "71",
+      "pts": "18",
+      "status": "Finished"
     },
     {
       "driverName": "George Russell",
@@ -36,11 +36,11 @@
       "q1": "1:17.659",
       "q2": "1:17.027",
       "q3": "1:16.523",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "6",
+      "race": "6",
+      "laps": "71",
+      "pts": "8",
+      "status": "Finished"
     },
     {
       "driverName": "Charles Leclerc",
@@ -54,11 +54,11 @@
       "q1": "1:17.506",
       "q2": "1:16.944",
       "q3": "1:16.633",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "4",
+      "race": "4",
+      "laps": "71",
+      "pts": "12",
+      "status": "Finished"
     },
     {
       "driverName": "Kimi Antonelli",
@@ -72,11 +72,11 @@
       "q1": "1:17.918",
       "q2": "1:17.133",
       "q3": "1:16.707",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "3",
+      "race": "3",
+      "laps": "71",
+      "pts": "15",
+      "status": "Finished"
     },
     {
       "driverName": "Max Verstappen",
@@ -90,11 +90,11 @@
       "q1": "1:17.942",
       "q2": "1:16.876",
       "q3": "1:16.692",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "1",
+      "race": "1",
+      "laps": "71",
+      "pts": "25",
+      "status": "Finished"
     },
     {
       "driverName": "Lando Norris",
@@ -108,11 +108,11 @@
       "q1": "1:17.733",
       "q2": "1:16.728",
       "q3": "1:16.824",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "5",
+      "race": "5",
+      "laps": "71",
+      "pts": "10",
+      "status": "Finished"
     },
     {
       "driverName": "Isack Hadjar",
@@ -126,11 +126,11 @@
       "q1": "1:17.385",
       "q2": "1:17.047",
       "q3": "1:16.900",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "12",
+      "race": "12",
+      "laps": "71",
+      "pts": "0",
+      "status": "Finished"
     },
     {
       "driverName": "Arvid Lindblad",
@@ -144,11 +144,11 @@
       "q1": "1:18.210",
       "q2": "1:17.135",
       "q3": "1:17.117",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "18",
+      "race": "18",
+      "laps": "58",
+      "pts": "0",
+      "status": "Retired"
     },
     {
       "driverName": "Pierre Gasly",
@@ -162,11 +162,11 @@
       "q1": "1:18.194",
       "q2": "1:17.278",
       "q3": "1:17.153",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "10",
+      "race": "10",
+      "laps": "71",
+      "pts": "1",
+      "status": "Finished"
     },
     {
       "driverName": "Nico Hulkenberg",
@@ -180,11 +180,11 @@
       "q1": "1:17.868",
       "q2": "1:17.306",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "16",
+      "race": "16",
+      "laps": "71",
+      "pts": "0",
+      "status": "Finished"
     },
     {
       "driverName": "Franco Colapinto",
@@ -198,11 +198,11 @@
       "q1": "1:18.517",
       "q2": "1:17.640",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "8",
+      "race": "8",
+      "laps": "71",
+      "pts": "4",
+      "status": "Finished"
     },
     {
       "driverName": "Oscar Piastri",
@@ -216,11 +216,11 @@
       "q1": "1:17.659",
       "q2": "1:17.646",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "7",
+      "race": "7",
+      "laps": "71",
+      "pts": "6",
+      "status": "Finished"
     },
     {
       "driverName": "Gabriel Bortoleto",
@@ -234,11 +234,11 @@
       "q1": "1:17.727",
       "q2": "1:17.680",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "11",
+      "race": "11",
+      "laps": "71",
+      "pts": "0",
+      "status": "Finished"
     },
     {
       "driverName": "Oliver Bearman",
@@ -252,11 +252,11 @@
       "q1": "1:18.083",
       "q2": "1:18.083",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "19",
+      "race": "19",
+      "laps": "47",
+      "pts": "0",
+      "status": "Retired"
     },
     {
       "driverName": "Carlos Sainz",
@@ -270,11 +270,11 @@
       "q1": "1:18.521",
       "q2": "1:18.885",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "15",
+      "race": "15",
+      "laps": "71",
+      "pts": "0",
+      "status": "Finished"
     },
     {
       "driverName": "Alexander Albon",
@@ -288,11 +288,11 @@
       "q1": "1:18.630",
       "q2": "",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "14",
+      "race": "14",
+      "laps": "71",
+      "pts": "0",
+      "status": "Finished"
     },
     {
       "driverName": "Fernando Alonso",
@@ -306,11 +306,11 @@
       "q1": "1:18.908",
       "q2": "",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "22",
+      "race": "22",
+      "laps": "5",
+      "pts": "0",
+      "status": "Retired"
     },
     {
       "driverName": "Ryo Hirakawa",
@@ -324,11 +324,11 @@
       "q1": "1:18.958",
       "q2": "",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "13",
+      "race": "13",
+      "laps": "71",
+      "pts": "0",
+      "status": "Finished"
     },
     {
       "driverName": "Lance Stroll",
@@ -342,11 +342,11 @@
       "q1": "1:19.072",
       "q2": "",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "21",
+      "race": "21",
+      "laps": "5",
+      "pts": "0",
+      "status": "Retired"
     },
     {
       "driverName": "Sergio Perez",
@@ -360,11 +360,11 @@
       "q1": "1:19.105",
       "q2": "",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "17",
+      "race": "17",
+      "laps": "71",
+      "pts": "0",
+      "status": "Finished"
     },
     {
       "driverName": "Valtteri Bottas",
@@ -378,11 +378,11 @@
       "q1": "1:19.852",
       "q2": "",
       "q3": "",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "20",
+      "race": "20",
+      "laps": "42",
+      "pts": "0",
+      "status": "Retired"
     },
     {
       "driverName": "Liam Lawson",
@@ -396,11 +396,11 @@
       "q1": "",
       "q2": "1:17.207",
       "q3": "1:17.029",
-      "pos": "",
-      "race": "",
-      "laps": "",
-      "pts": "",
-      "status": ""
+      "pos": "9",
+      "race": "9",
+      "laps": "71",
+      "pts": "2",
+      "status": "Finished"
     }
   ]
 }
