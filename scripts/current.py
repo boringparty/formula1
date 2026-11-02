@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build operational current.json by fetching the starting grid from formula1.com."""
+"""Build operational current.json by fetching the starting grid and race results."""
 from __future__ import annotations
 import json, os, re, logging
 from datetime import datetime, timezone, date, timedelta
@@ -12,15 +12,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CURRENT_OUTPUT = Path(os.getenv('F1_CURRENT_OUTPUT_FILE', str(REPO_ROOT / 'current.json')))
 JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 
-# Calendar source: a local file (checked out with the repo) is preferred, then the URL.
 ICS_FILE = Path(os.getenv('F1_ICS_FILE', str(REPO_ROOT / 'data' / 'calendar.ics')))
 ICS_URL = os.getenv('F1_ICS_URL', 'https://raw.githubusercontent.com/boringparty/formula1/refs/heads/main/data/calendar.ics')
-# A weekend becomes "current" this many hours before its first session, and stays current
-# (so race results remain visible) until the next weekend's lead window opens.
 LEAD_HOURS = float(os.getenv('F1_LEAD_HOURS', '36'))
-WEEKEND_GAP = timedelta(days=4)  # sessions further apart than this belong to different weekends
+WEEKEND_GAP = timedelta(days=4)
 
-# formula1.com race IDs for 2026: round 1 -> 1279 ... round 24 -> 1302
 F1_ID_BASE = 1278
 
 DRIVER_NAME_MAP = {
@@ -47,21 +43,16 @@ HEADERS = {
     'Referer': 'https://www.formula1.com/',
 }
 
-
 def clean(s): return re.sub(r'\s+', ' ', str(s or '')).strip()
 def norm(s): return re.sub(r'[^a-z0-9]+', '', clean(s).lower()).strip()
 def get_std_name(d_id, raw): return DRIVER_NAME_MAP.get(d_id, clean(raw))
 def get_std_team(raw):
-    # TEAM_NAME_MAP keys contain spaces (e.g. 'aston martin'), so look up on the cleaned lowercase name
     key = clean(raw).lower()
     return TEAM_NAME_MAP.get(key, clean(raw))
 
-
 def num_key(n) -> str:
-    """Normalise a car number so '01', '1' and 1 all compare equal."""
     s = clean(n)
     return str(int(s)) if s.isdigit() else s
-
 
 def fetch_json(url):
     try:
@@ -73,9 +64,7 @@ def fetch_json(url):
         logging.warning("Error fetching %s: %s", url, e)
     return {}
 
-
 def race_keywords(meta: dict) -> list[str]:
-    """Normalised name fragments that identify this race (country, city, GP name)."""
     loc = meta.get('Circuit', {}).get('Location', {})
     raw = [
         loc.get('country', ''),
@@ -89,16 +78,13 @@ def race_keywords(meta: dict) -> list[str]:
             out.append(n)
     return out
 
-
 def discover_race_id_from_index(season: int, kws: list[str]) -> int | None:
-    """Find the formula1.com race ID by matching link slugs on the season results page."""
     url = f"https://www.formula1.com/en/results/{season}/races"
     try:
         r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
     except Exception as e:
         logging.warning("Index request failed: %s", e)
         return None
-    logging.info("Index %s -> HTTP %s, %d bytes", url, r.status_code, len(r.text))
     if r.status_code != 200:
         return None
 
@@ -108,37 +94,22 @@ def discover_race_id_from_index(season: int, kws: list[str]) -> int | None:
         item = (int(m.group(1)), m.group(2))
         if item not in seen:
             seen.append(item)
-    logging.info("Index lists %d races: %s", len(seen), seen)
 
     for rid, slug in seen:
         ns = norm(slug)
         if len(ns) >= 4 and any(ns in k or k in ns for k in kws):
-            logging.info("Matched race on index: id=%s slug=%s", rid, slug)
             return rid
     return None
 
-
 def page_identifies_race(soup: BeautifulSoup, kws: list[str]) -> bool:
-    """True if the page's title/headings (not the nav menus) mention this race."""
     parts = [soup.title.get_text(' ', strip=True) if soup.title else '']
     parts += [h.get_text(' ', strip=True) for h in soup.find_all(['h1', 'h2'])]
     blob = norm(' '.join(parts))
     return any(k in blob for k in kws)
 
-
-def scrape_official_f1_grid(season: int, round_no: int, meta: dict) -> dict[str, str]:
-    """Returns {car_number: grid_position} for the race described by `meta`.
-
-    The formula1.com race ID is NOT derived from the Jolpica round alone (rounds shift if
-    the calendar changes). Order of attempts:
-      1. F1_RACE_ID env override
-      2. ID discovered from the season results index page (slug matched to country/city)
-      3. Offset guesses around 1278+round, accepted only if the page title names this race
-    """
+def scrape_official_f1_table(season: int, round_no: int, meta: dict, subpage: str) -> dict[str, str]:
+    """Scrapes either 'starting-grid' or 'race-result' table from formula1.com keyed by car number."""
     kws = race_keywords(meta)
-    logging.info("Race keywords: %s", kws)
-
-    # (race_id, trusted) -- trusted IDs skip the title check
     candidates: list[tuple[int, bool]] = []
     override = os.getenv('F1_RACE_ID', '').strip()
     if override.isdigit():
@@ -155,74 +126,48 @@ def scrape_official_f1_grid(season: int, round_no: int, meta: dict) -> dict[str,
         if race_id in tried:
             continue
         tried.add(race_id)
-        grid = _scrape_grid_page(season, race_id, kws, trusted)
-        if grid:
-            return grid
+        url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/_/{subpage}"
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, 'html.parser')
+            if not trusted and not page_identifies_race(soup, kws):
+                continue
+            table = soup.find('table')
+            if not table:
+                continue
+            
+            pos_idx, no_idx = 0, 1
+            header = table.find('tr')
+            if header:
+                heads = [norm(c.get_text(' ', strip=True)) for c in header.find_all(['th', 'td'])]
+                for i, h in enumerate(heads):
+                    if h in ('pos', 'position'):
+                        pos_idx = i
+                    elif h in ('no', 'number', 'num'):
+                        no_idx = i
 
-    logging.error("No verified starting grid found for %s; refusing to use a different race's grid.",
-                  meta.get('raceName'))
+            data_map = {}
+            for row in table.find_all('tr'):
+                cells = [c.get_text(' ', strip=True) for c in row.find_all(['td', 'th'])]
+                if len(cells) <= max(pos_idx, no_idx):
+                    continue
+                pos, no = cells[pos_idx], cells[no_idx]
+                # Allow standard digits or retirement codes (NC, DNF, DSQ, etc.) for race results
+                if no.isdigit() and (pos.isdigit() or pos.upper() in ('NC', 'DNF', 'DSQ', 'EX')):
+                    data_map[num_key(no)] = pos
+            if data_map:
+                logging.info("Successfully scraped %s for race_id %s", subpage, race_id)
+                return data_map
+        except Exception as e:
+            logging.warning("Error scraping %s: %s", subpage, e)
     return {}
 
-
-def _scrape_grid_page(season: int, race_id: int, kws: list[str], trusted: bool) -> dict[str, str]:
-    url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/_/starting-grid"
-    logging.info("Scraping official starting grid from: %s (trusted=%s)", url, trusted)
-
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-    except Exception as e:
-        logging.error("Request failed: %s", e)
-        return {}
-
-    logging.info("HTTP %s, %d bytes, final URL: %s", r.status_code, len(r.text), r.url)
-    if r.status_code != 200:
-        logging.error("Non-200 response. 403 usually means bot protection is blocking the runner IP.")
-        return {}
-
-    soup = BeautifulSoup(r.text, 'html.parser')
-    title = clean(soup.title.get_text()) if soup.title else ''
-    logging.info("Page title: %s", title)
-
-    if not trusted and not page_identifies_race(soup, kws):
-        logging.warning("ID %s title doesn't match %s; skipping (wrong race?)", race_id, kws)
-        return {}
-
-    table = soup.find('table')
-    if not table:
-        logging.error("No <table> found (page may be JS-rendered, a bot-block page, or the grid isn't published yet)")
-        return {}
-
-    # Detect column positions from the header row, falling back to [Pos, No, Driver, ...]
-    pos_idx, no_idx = 0, 1
-    header = table.find('tr')
-    if header:
-        heads = [norm(c.get_text(' ', strip=True)) for c in header.find_all(['th', 'td'])]
-        for i, h in enumerate(heads):
-            if h in ('pos', 'position'):
-                pos_idx = i
-            elif h in ('no', 'number', 'num'):
-                no_idx = i
-        logging.info("Header: %s (pos col=%d, no col=%d)", heads, pos_idx, no_idx)
-
-    grid: dict[str, str] = {}
-    for row in table.find_all('tr'):
-        cells = [c.get_text(' ', strip=True) for c in row.find_all(['td', 'th'])]
-        if len(cells) <= max(pos_idx, no_idx):
-            continue
-        pos, no = cells[pos_idx], cells[no_idx]
-        if not pos.isdigit() or not no.isdigit():
-            continue
-        grid[num_key(no)] = pos
-
-    logging.info("Extracted %d grid rows: %s", len(grid), grid)
-    return grid
-
-
 def _parse_ics_dt(value: str, params: str) -> datetime | None:
-    """Parse a DTSTART/DTEND value to an aware UTC datetime."""
     value = value.strip()
     try:
-        if re.fullmatch(r'\d{8}', value):  # all-day event
+        if re.fullmatch(r'\d{8}', value):
             return datetime.strptime(value, '%Y%m%d').replace(tzinfo=timezone.utc)
         if value.endswith('Z'):
             return datetime.strptime(value, '%Y%m%dT%H%M%SZ').replace(tzinfo=timezone.utc)
@@ -233,36 +178,26 @@ def _parse_ics_dt(value: str, params: str) -> datetime | None:
                 from zoneinfo import ZoneInfo
                 return dt.replace(tzinfo=ZoneInfo(m.group(1))).astimezone(timezone.utc)
             except Exception:
-                logging.warning("Unknown TZID %s; treating as UTC", m.group(1))
+                pass
         return dt.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
 
-
 def load_ics_text() -> str:
-    """Read the calendar from the local file if present, otherwise download it."""
     if ICS_FILE.is_file():
-        logging.info("Reading calendar from local file %s", ICS_FILE)
         return ICS_FILE.read_text(encoding='utf-8', errors='replace')
     try:
         r = requests.get(ICS_URL, headers=HEADERS, timeout=TIMEOUT)
-    except Exception as e:
-        logging.warning("ICS request failed: %s", e)
-        return ''
-    logging.info("ICS %s -> HTTP %s, %d bytes", ICS_URL, r.status_code, len(r.text))
-    return r.text if r.status_code == 200 else ''
-
+        if r.status_code == 200:
+            return r.text
+    except Exception:
+        pass
+    return ''
 
 def fetch_ics_events() -> list[dict]:
-    """Return [{'start','end','summary','weekend','session'}] sorted by start (UTC).
-
-    'weekend' and 'session' come from UIDs like '...#GP18_2026_qualifying' when present.
-    """
     raw = load_ics_text()
     if not raw:
         return []
-
-    # Unfold continuation lines (RFC 5545)
     text = re.sub(r'\r?\n[ \t]', '', raw)
     events, cur = [], None
     for line in text.splitlines():
@@ -290,12 +225,9 @@ def fetch_ics_events() -> list[dict]:
                     cur['weekend'], cur['session'] = m.group(1), m.group(2).lower()
     events = [e for e in events if e.get('start') and e.get('end')]
     events.sort(key=lambda e: e['start'])
-    logging.info("Parsed %d calendar events", len(events))
     return events
 
-
 def group_weekends(events: list[dict]) -> list[dict]:
-    """Group sessions into race weekends: by UID key (GPn) when present, else by time gap."""
     weekends: list[dict] = []
     by_key: dict[str, dict] = {}
     for e in events:
@@ -317,7 +249,6 @@ def group_weekends(events: list[dict]) -> list[dict]:
     weekends.sort(key=lambda w: w['start'])
     return weekends
 
-
 def match_race_to_weekend(races: list[dict], weekend: dict) -> dict | None:
     lo = weekend['start'].date() - timedelta(days=1)
     hi = weekend['end'].date() + timedelta(days=1)
@@ -330,14 +261,8 @@ def match_race_to_weekend(races: list[dict], weekend: dict) -> dict | None:
             return r
     return None
 
-
 def pick_active_race(races: list[dict], now: datetime) -> tuple[dict, datetime | None]:
-    """Return (race_meta, qualifying_end_utc_or_None) for the current race weekend.
-
-    Uses the ICS calendar when available, falling back to the first race on/after today.
-    """
     weekends = group_weekends(fetch_ics_events())
-    # keep only weekends that correspond to a Jolpica race this season
     paired = [(w, match_race_to_weekend(races, w)) for w in weekends]
     paired = [(w, r) for w, r in paired if r]
 
@@ -357,12 +282,8 @@ def pick_active_race(races: list[dict], now: datetime) -> tuple[dict, datetime |
                 not e.get('session') and 'qualifying' in s and 'sprint' not in s)
             if is_quali:
                 quali_end = e['end']
-        logging.info("ICS says current weekend is round %s (%s): %s -> %s; qualifying ends %s",
-                     r.get('round'), r.get('raceName'), w['start'].isoformat(),
-                     w['end'].isoformat(), quali_end.isoformat() if quali_end else 'unknown')
         return r, quali_end
 
-    logging.warning("ICS unavailable or unmatched; falling back to date-based race selection")
     today = now.date()
     for r in races:
         try:
@@ -372,39 +293,33 @@ def pick_active_race(races: list[dict], now: datetime) -> tuple[dict, datetime |
             continue
     return races[-1], None
 
-
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     now = datetime.now(timezone.utc)
 
-    # 1. Fetch schedule to locate active/latest round
     sched = fetch_json(f'{JOLPICA}/{SEASON}.json')
     races = sched.get('RaceTable', {}).get('Races', [])
-
     if not races:
         logging.error("Could not fetch season schedule.")
         return
 
     active_meta, quali_end = pick_active_race(races, now)
-
     active_round = str(active_meta.get('round'))
     race_name = active_meta.get('raceName', '')
     logging.info("Targeting Round %s: %s", active_round, race_name)
 
-    # 2. Scrape official F1 starting grid (keyed by car number)
+    # 1. Scrape official starting grid
     if quali_end and now < quali_end:
-        logging.info("Qualifying hasn't finished yet (ends %s); skipping grid scrape.", quali_end.isoformat())
         official_grid_map = {}
     else:
-        official_grid_map = scrape_official_f1_grid(SEASON, int(active_round), active_meta)
-    if not official_grid_map:
-        logging.warning("No grid data scraped; 'grid' fields will be empty.")
+        official_grid_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'starting-grid')
 
-    # 3. Fetch qualifying session data (for Q1/Q2/Q3 times)
+    # 2. Scrape official race results as a robust fallback/supplement to Jolpica API results
+    official_race_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'race-result')
+
+    # 3. Fetch qualifying session data
     qual_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/qualifying.json')
-    qual_races = qual_data.get('RaceTable', {}).get('Races', [])
-    qual_results = qual_races[0].get('QualifyingResults', []) if qual_races else []
-
+    qual_results = qual_data.get('RaceTable', {}).get('Races', [{}])[0].get('QualifyingResults', [])
     qual_map = {}
     for q in qual_results:
         d_id = q.get('Driver', {}).get('driverId', '')
@@ -416,11 +331,9 @@ def main():
             'number': q.get('number', '')
         }
 
-    # 4. Fetch race classification (for completed race data)
+    # 4. Fetch race classification from Jolpica API
     race_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/results.json')
-    race_races = race_data.get('RaceTable', {}).get('Races', [])
-    race_results = race_races[0].get('Results', []) if race_races else []
-
+    race_results = race_data.get('RaceTable', {}).get('Races', [{}])[0].get('Results', [])
     race_map = {}
     for res in race_results:
         d_id = res.get('Driver', {}).get('driverId', '')
@@ -433,7 +346,6 @@ def main():
             'number': res.get('number', '')
         }
 
-    # 5. Build unified driver list
     all_driver_ids = set(qual_map.keys()).union(set(race_map.keys()))
     driver_info_source = qual_results if qual_results else race_results
     driver_metadata = {}
@@ -463,9 +375,11 @@ def main():
         q_info = qual_map.get(d_id, {})
         r_info = race_map.get(d_id, {})
 
-        # Grid comes strictly from the formula1.com grid map, looked up by car number
         no = r_info.get('number') or q_info.get('number', '')
         grid_pos = official_grid_map.get(num_key(no), '')
+        
+        # Fallback to scraped race result position if API didn't return race pos yet
+        pos_val = r_info.get('pos', '') or official_race_map.get(num_key(no), '')
 
         combined_drivers.append({
             'driverName': meta['driverName'],
@@ -479,16 +393,15 @@ def main():
             'q1': q_info.get('q1', ''),
             'q2': q_info.get('q2', ''),
             'q3': q_info.get('q3', ''),
-            'pos': r_info.get('pos', ''),
-            'race': r_info.get('race', ''),
+            'pos': str(pos_val),
+            'race': str(pos_val),
             'laps': r_info.get('laps', ''),
             'pts': r_info.get('pts', ''),
             'status': r_info.get('status', '')
         })
 
-    # Sort by official grid position, then race position, then unknowns last
     combined_drivers.sort(
-        key=lambda x: int(x['grid']) if x['grid'].isdigit() else (int(x['pos']) if x['pos'].isdigit() else 99)
+        key=lambda x: int(x['pos']) if x['pos'].isdigit() else (int(x['grid']) if x['grid'].isdigit() else 99)
     )
 
     payload = {
@@ -503,10 +416,9 @@ def main():
 
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     CURRENT_OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    logging.info('Generated %s (%d drivers, %d with grid positions).',
+    logging.info('Generated %s (%d drivers, %d with race positions).',
                  CURRENT_OUTPUT, len(combined_drivers),
-                 sum(1 for d in combined_drivers if d['grid']))
-
+                 sum(1 for d in combined_drivers if d['pos']))
 
 if __name__ == '__main__':
     main()
