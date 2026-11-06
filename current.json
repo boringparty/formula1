@@ -4,7 +4,7 @@
   "race_name": "Mexico City Grand Prix",
   "date": "2026-11-01",
   "time": "20:00:00Z",
-  "updated_at_utc": "2026-11-05T02:57:42.378434+00:00",
+  "updated_at_utc": "2026-11-06T23:57:11.958683+00:00",
   "drivers": [
     {
       "driverName": "Max Verstappen",
@@ -22,7 +22,8 @@
       "race": "1",
       "laps": "71",
       "pts": "25",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:19.328"
     },
     {
       "driverName": "Lewis Hamilton",
@@ -40,7 +41,8 @@
       "race": "2",
       "laps": "71",
       "pts": "18",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:19.268"
     },
     {
       "driverName": "Kimi Antonelli",
@@ -58,7 +60,8 @@
       "race": "3",
       "laps": "71",
       "pts": "15",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:19.427"
     },
     {
       "driverName": "Charles Leclerc",
@@ -76,7 +79,8 @@
       "race": "4",
       "laps": "71",
       "pts": "12",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:19.851"
     },
     {
       "driverName": "Lando Norris",
@@ -94,7 +98,8 @@
       "race": "5",
       "laps": "71",
       "pts": "10",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:19.800"
     },
     {
       "driverName": "George Russell",
@@ -112,7 +117,8 @@
       "race": "6",
       "laps": "71",
       "pts": "8",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.147"
     },
     {
       "driverName": "Liam Lawson",
@@ -130,7 +136,8 @@
       "race": "7",
       "laps": "71",
       "pts": "6",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.713"
     },
     {
       "driverName": "Gabriel Bortoleto",
@@ -148,7 +155,8 @@
       "race": "8",
       "laps": "71",
       "pts": "4",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.872"
     },
     {
       "driverName": "Isack Hadjar",
@@ -166,7 +174,8 @@
       "race": "9",
       "laps": "71",
       "pts": "2",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.244"
     },
     {
       "driverName": "Ryo Hirakawa",
@@ -184,7 +193,8 @@
       "race": "10",
       "laps": "71",
       "pts": "1",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.984"
     },
     {
       "driverName": "Alexander Albon",
@@ -202,7 +212,8 @@
       "race": "11",
       "laps": "71",
       "pts": "0",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:21.114"
     },
     {
       "driverName": "Carlos Sainz",
@@ -220,7 +231,8 @@
       "race": "12",
       "laps": "71",
       "pts": "0",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:21.339"
     },
     {
       "driverName": "Oscar Piastri",
@@ -238,7 +250,8 @@
       "race": "13",
       "laps": "71",
       "pts": "0",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.690"
     },
     {
       "driverName": "Nico Hulkenberg",
@@ -256,7 +269,8 @@
       "race": "14",
       "laps": "71",
       "pts": "0",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.732"
     },
     {
       "driverName": "Franco Colapinto",
@@ -274,7 +288,8 @@
       "race": "15",
       "laps": "71",
       "pts": "0",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.750"
     },
     {
       "driverName": "Sergio Perez",
@@ -292,7 +307,8 @@
       "race": "16",
       "laps": "71",
       "pts": "0",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:21.256"
     },
     {
       "driverName": "Pierre Gasly",
@@ -310,7 +326,8 @@
       "race": "17",
       "laps": "71",
       "pts": "0",
-      "status": "Finished"
+      "status": "Finished",
+      "fastestLap": "1:20.754"
     },
     {
       "driverName": "Arvid Lindblad",
@@ -328,7 +345,8 @@
       "race": "18",
       "laps": "58",
       "pts": "0",
-      "status": "Retired"
+      "status": "Retired",
+      "fastestLap": "1:20.555"
     },
     {
       "driverName": "Oliver Bearman",
@@ -346,7 +364,8 @@
       "race": "19",
       "laps": "47",
       "pts": "0",
-      "status": "Retired"
+      "status": "Retired",
+      "fastestLap": "1:21.068"
     },
     {
       "driverName": "Valtteri Bottas",
@@ -364,7 +383,8 @@
       "race": "20",
       "laps": "42",
       "pts": "0",
-      "status": "Retired"
+      "status": "Retired",
+      "fastestLap": "1:22.487"
     },
     {
       "driverName": "Lance Stroll",
@@ -382,7 +402,8 @@
       "race": "21",
       "laps": "5",
       "pts": "0",
-      "status": "Retired"
+      "status": "Retired",
+      "fastestLap": "1:23.696"
     },
     {
       "driverName": "Fernando Alonso",
@@ -400,7 +421,8 @@
       "race": "22",
       "laps": "5",
       "pts": "0",
-      "status": "Retired"
+      "status": "Retired",
+      "fastestLap": "1:23.544"
     }
   ]
 }
