@@ -1,6 +1,6 @@
 {
   "season": 2026,
-  "updated_at_utc": "2026-11-01T09:22:38.458637+00:00",
+  "updated_at_utc": "2026-11-06T11:39:13.404087+00:00",
   "drivers": [
     {
       "code": "ALB",
@@ -134,7 +134,7 @@
       "code": "HIR",
       "name": "Ryo Hirakawa",
       "driverId": "ryo_hirakawa",
-      "permanentNumber": null,
+      "permanentNumber": "50",
       "nationality": null,
       "image_url": "https://media.formula1.com/image/upload/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/ferrari/ryo_hir01/2026ferrariryo_hir01right.webp"
     },
