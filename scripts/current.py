@@ -164,6 +164,114 @@ def scrape_official_f1_table(season: int, round_no: int, meta: dict, subpage: st
             logging.warning("Error scraping %s: %s", subpage, e)
     return {}
 
+def scrape_official_fastest_laps(
+    season: int,
+    meta: dict,
+) -> dict[str, str]:
+    """Return fastest-lap times keyed by car number from Formula1.com."""
+
+    kws = race_keywords(meta)
+    url = f"https://www.formula1.com/en/results/{season}/races"
+
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("Could not load F1 race index: %s", exc)
+        return {}
+
+    pattern = re.compile(
+        rf"/results/{season}/races/(\d+)/([a-z0-9-]+)"
+    )
+
+    race_page = None
+
+    for match in pattern.finditer(response.text):
+        race_id, slug = match.groups()
+        normalized_slug = norm(slug)
+
+        if any(
+            normalized_slug in keyword or keyword in normalized_slug
+            for keyword in kws
+        ):
+            race_page = (race_id, slug)
+            break
+
+    if not race_page:
+        logging.warning("Could not identify the official F1 race page.")
+        return {}
+
+    race_id, slug = race_page
+    fastest_url = (
+        f"https://www.formula1.com/en/results/{season}/"
+        f"races/{race_id}/{slug}/fastest-laps"
+    )
+
+    try:
+        response = requests.get(
+            fastest_url,
+            headers=HEADERS,
+            timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("Could not load fastest-laps page: %s", exc)
+        return {}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    table = soup.find("table", id="results-table") or soup.find("table")
+
+    if not table:
+        logging.warning("No fastest-laps table found.")
+        return {}
+
+    header = table.find("tr")
+    if not header:
+        return {}
+
+    headers = [
+        norm(cell.get_text(" ", strip=True))
+        for cell in header.find_all(["th", "td"])
+    ]
+
+    try:
+        number_index = next(
+            i for i, value in enumerate(headers)
+            if value in ("no", "number", "num")
+        )
+        time_index = next(
+            i for i, value in enumerate(headers)
+            if value == "time"
+        )
+    except StopIteration:
+        logging.warning("Fastest-laps table is missing expected columns.")
+        return {}
+
+    fastest_laps = {}
+
+    for row in table.find_all("tr"):
+        cells = [
+            cell.get_text(" ", strip=True)
+            for cell in row.find_all(["td", "th"])
+        ]
+
+        if len(cells) <= max(number_index, time_index):
+            continue
+
+        car_number = cells[number_index]
+        lap_time = cells[time_index]
+
+        if car_number.isdigit() and lap_time:
+            fastest_laps[num_key(car_number)] = lap_time
+
+    logging.info(
+        "Scraped %d fastest-lap times from the official F1 page.",
+        len(fastest_laps),
+    )
+
+    return fastest_laps
+
+
 def _parse_ics_dt(value: str, params: str) -> datetime | None:
     value = value.strip()
     try:
