@@ -25,10 +25,15 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4 gspread google-auth
 
-      - name: Run current session script
+      - name: Build current session data
         run: python scripts/current.py
+
+      - name: Push data to Google Sheets
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/push_to_sheets.py
 
       - name: Commit current.json changes
         run: |
