@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build operational current.json by fetching the starting grid and race results."""
+"""Build operational current.json with grid, race results, and fastest laps."""
 from __future__ import annotations
 import json, os, re, logging
 from datetime import datetime, timezone, date, timedelta
@@ -427,6 +427,10 @@ def main():
     # 2. Scrape official race results as a robust fallback/supplement to Jolpica API results
     official_race_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'race-result')
 
+    # 2a. Scrape fastest-lap times from the official Formula 1 results page.
+    # The scraper returns an empty mapping until the page/table is published.
+    fastest_lap_map = scrape_official_fastest_laps(SEASON, active_meta)
+
     # 3. Fetch qualifying session data
     qual_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/qualifying.json')
     qual_results = qual_data.get('RaceTable', {}).get('Races', [{}])[0].get('QualifyingResults', [])
@@ -507,7 +511,8 @@ def main():
             'race': str(pos_val),
             'laps': r_info.get('laps', ''),
             'pts': r_info.get('pts', ''),
-            'status': r_info.get('status', '')
+            'status': r_info.get('status', ''),
+            'fastestLap': fastest_lap_map.get(num_key(no), '')
         })
 
     combined_drivers.sort(
