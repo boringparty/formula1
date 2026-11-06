@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "*/15 * * * *" # Every 15 minutes
   workflow_dispatch:
+    inputs:
+      round_offset:
+        description: 'Race offset for testing (0 = normal, -1 = previous, +1 = next)'
+        required: false
+        default: '0'
+        type: string
 
 permissions:
   contents: write
@@ -28,6 +34,8 @@ jobs:
         run: pip install requests beautifulsoup4 gspread google-auth
 
       - name: Build current session data
+        env:
+          F1_ROUND_OFFSET: ${{ github.event.inputs.round_offset || '0' }}
         run: python scripts/current.py
 
       - name: Push data to Google Sheets
