@@ -101,69 +101,6 @@ def discover_race_id_from_index(season: int, kws: list[str]) -> int | None:
             return rid
     return None
 
-def page_identifies_race(soup: BeautifulSoup, kws: list[str]) -> bool:
-    parts = [soup.title.get_text(' ', strip=True) if soup.title else '']
-    parts += [h.get_text(' ', strip=True) for h in soup.find_all(['h1', 'h2'])]
-    blob = norm(' '.join(parts))
-    return any(k in blob for k in kws)
-
-def scrape_official_f1_table(season: int, round_no: int, meta: dict, subpage: str) -> dict[str, str]:
-    """Scrapes either 'starting-grid' or 'race-result' table from formula1.com keyed by car number."""
-    kws = race_keywords(meta)
-    candidates: list[tuple[int, bool]] = []
-    override = os.getenv('F1_RACE_ID', '').strip()
-    if override.isdigit():
-        candidates.append((int(override), True))
-    discovered = discover_race_id_from_index(season, kws)
-    if discovered:
-        candidates.append((discovered, True))
-    guess = F1_ID_BASE + round_no
-    for delta in (0, 1, -1, 2, -2):
-        candidates.append((guess + delta, False))
-
-    tried = set()
-    for race_id, trusted in candidates:
-        if race_id in tried:
-            continue
-        tried.add(race_id)
-        url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/_/{subpage}"
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-            if r.status_code != 200:
-                continue
-            soup = BeautifulSoup(r.text, 'html.parser')
-            if not trusted and not page_identifies_race(soup, kws):
-                continue
-            table = soup.find('table')
-            if not table:
-                continue
-            
-            pos_idx, no_idx = 0, 1
-            header = table.find('tr')
-            if header:
-                heads = [norm(c.get_text(' ', strip=True)) for c in header.find_all(['th', 'td'])]
-                for i, h in enumerate(heads):
-                    if h in ('pos', 'position'):
-                        pos_idx = i
-                    elif h in ('no', 'number', 'num'):
-                        no_idx = i
-
-            data_map = {}
-            for row in table.find_all('tr'):
-                cells = [c.get_text(' ', strip=True) for c in row.find_all(['td', 'th'])]
-                if len(cells) <= max(pos_idx, no_idx):
-                    continue
-                pos, no = cells[pos_idx], cells[no_idx]
-                # Allow standard digits or retirement codes (NC, DNF, DSQ, etc.) for race results
-                if no.isdigit() and (pos.isdigit() or pos.upper() in ('NC', 'DNF', 'DSQ', 'EX')):
-                    data_map[num_key(no)] = pos
-            if data_map:
-                logging.info("Successfully scraped %s for race_id %s", subpage, race_id)
-                return data_map
-        except Exception as e:
-            logging.warning("Error scraping %s: %s", subpage, e)
-    return {}
-
 def scrape_official_fastest_laps(
     season: int,
     meta: dict,
@@ -270,6 +207,71 @@ def scrape_official_fastest_laps(
     )
 
     return fastest_laps
+
+
+def page_identifies_race(soup: BeautifulSoup, kws: list[str]) -> bool:
+    parts = [soup.title.get_text(' ', strip=True) if soup.title else '']
+    parts += [h.get_text(' ', strip=True) for h in soup.find_all(['h1', 'h2'])]
+    blob = norm(' '.join(parts))
+    return any(k in blob for k in kws)
+
+def scrape_official_f1_table(season: int, round_no: int, meta: dict, subpage: str) -> dict[str, str]:
+    """Scrapes either 'starting-grid' or 'race-result' table from formula1.com keyed by car number."""
+    kws = race_keywords(meta)
+    candidates: list[tuple[int, bool]] = []
+    override = os.getenv('F1_RACE_ID', '').strip()
+    if override.isdigit():
+        candidates.append((int(override), True))
+    discovered = discover_race_id_from_index(season, kws)
+    if discovered:
+        candidates.append((discovered, True))
+    guess = F1_ID_BASE + round_no
+    for delta in (0, 1, -1, 2, -2):
+        candidates.append((guess + delta, False))
+
+    tried = set()
+    for race_id, trusted in candidates:
+        if race_id in tried:
+            continue
+        tried.add(race_id)
+        url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/_/{subpage}"
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, 'html.parser')
+            if not trusted and not page_identifies_race(soup, kws):
+                continue
+            table = soup.find('table')
+            if not table:
+                continue
+            
+            pos_idx, no_idx = 0, 1
+            header = table.find('tr')
+            if header:
+                heads = [norm(c.get_text(' ', strip=True)) for c in header.find_all(['th', 'td'])]
+                for i, h in enumerate(heads):
+                    if h in ('pos', 'position'):
+                        pos_idx = i
+                    elif h in ('no', 'number', 'num'):
+                        no_idx = i
+
+            data_map = {}
+            for row in table.find_all('tr'):
+                cells = [c.get_text(' ', strip=True) for c in row.find_all(['td', 'th'])]
+                if len(cells) <= max(pos_idx, no_idx):
+                    continue
+                pos, no = cells[pos_idx], cells[no_idx]
+                # Allow standard digits or retirement codes (NC, DNF, DSQ, etc.) for race results
+                if no.isdigit() and (pos.isdigit() or pos.upper() in ('NC', 'DNF', 'DSQ', 'EX')):
+                    data_map[num_key(no)] = pos
+            if data_map:
+                logging.info("Successfully scraped %s for race_id %s", subpage, race_id)
+                return data_map
+        except Exception as e:
+            logging.warning("Error scraping %s: %s", subpage, e)
+    return {}
+
 
 
 def _parse_ics_dt(value: str, params: str) -> datetime | None:
