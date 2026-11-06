@@ -200,6 +200,14 @@ def scrape_official_fastest_laps(
         lap_time = cells[time_index]
 
         if car_number.isdigit() and lap_time:
+            # Convert F1's M:SS.mmm display into HH:MM:SS.mmm so Sheets
+            # recognizes it as a valid duration (for example, 1:19.328
+            # becomes 00:01:19.328). Leave other formats unchanged.
+            duration_match = re.fullmatch(r"(\d+):([0-5]\d\.\d+)", lap_time)
+            if duration_match:
+                minutes, seconds = duration_match.groups()
+                lap_time = f"00:{int(minutes):02d}:{seconds}"
+
             fastest_laps[num_key(car_number)] = lap_time
 
     logging.info(
