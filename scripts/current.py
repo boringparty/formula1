@@ -15,6 +15,7 @@ JOLPICA = 'https://api.jolpi.ca/ergast/f1'
 ICS_FILE = Path(os.getenv('F1_ICS_FILE', str(REPO_ROOT / 'data' / 'calendar.ics')))
 ICS_URL = os.getenv('F1_ICS_URL', 'https://raw.githubusercontent.com/boringparty/formula1/refs/heads/main/data/calendar.ics')
 LEAD_HOURS = float(os.getenv('F1_LEAD_HOURS', '36'))
+ROUND_OFFSET = int(os.getenv('F1_ROUND_OFFSET', '0'))
 WEEKEND_GAP = timedelta(days=4)
 
 F1_ID_BASE = 1278
@@ -414,6 +415,28 @@ def main():
         return
 
     active_meta, quali_end = pick_active_race(races, now)
+
+    # Optional test override: shift the selected race by a number of rounds.
+    # 0 = normal selection, -1 = previous race, +1 = next race.
+    if ROUND_OFFSET:
+        selected_index = next(
+            (i for i, race in enumerate(races)
+             if str(race.get('round')) == str(active_meta.get('round'))),
+            None,
+        )
+        if selected_index is None:
+            raise RuntimeError("Could not locate the selected race in the season schedule.")
+
+        target_index = selected_index + ROUND_OFFSET
+        if not 0 <= target_index < len(races):
+            raise ValueError(
+                f"F1_ROUND_OFFSET={ROUND_OFFSET} moves outside the season schedule."
+            )
+
+        active_meta = races[target_index]
+        quali_end = None  # The calendar qualifying time belongs to the unshifted race.
+        logging.info("Applying round offset %s.", ROUND_OFFSET)
+
     active_round = str(active_meta.get('round'))
     race_name = active_meta.get('raceName', '')
     logging.info("Targeting Round %s: %s", active_round, race_name)
