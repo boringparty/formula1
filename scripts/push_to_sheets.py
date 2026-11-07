@@ -140,7 +140,7 @@ def main() -> None:
     drivers = payload["drivers"]
     worksheet = get_worksheet()
 
-    # Starting grid: only replace the range when grid data exists.
+    # Preliminary grid: driver names only, in grid order.
     grid_drivers = [
         d for d in drivers
         if str(d.get("grid", "")).strip().isdigit()
@@ -150,11 +150,11 @@ def main() -> None:
 
     if grid_drivers:
         grid_rows = [
-            [d.get("driverName", ""), d.get("constructorName", "")]
+            [d.get("driverName", "")]
             for d in grid_drivers
         ]
 
-        worksheet.batch_clear(["B2:C"])
+        worksheet.batch_clear(["B2:B"])
 
         worksheet.update(
             values=grid_rows,
@@ -163,11 +163,11 @@ def main() -> None:
         )
 
         logging.info(
-            "Updated starting grid (%d drivers).",
+            "Updated preliminary grid (%d drivers).",
             len(grid_rows),
         )
     else:
-        logging.info("No starting-grid data found; B:C left unchanged.")
+        logging.info("No preliminary-grid data found; B:B left unchanged.")
 
     # Race results: require a substantial classification before replacing old data.
     race_data_count = sum(
