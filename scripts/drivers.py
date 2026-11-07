@@ -1,4 +1,3 @@
-
 import json
 import re
 import unicodedata
@@ -10,9 +9,13 @@ from bs4 import BeautifulSoup
 
 
 F1_URL = "https://www.formula1.com/en/drivers"
-API_URL = "https://api.jolpi.ca/ergast/f1/2026/drivers.json?limit=100"
+API_URL = "https://api.jolpi.ca/ergast/f1/2026/drivers.json"
+API_PAGE_SIZE = 100
 
 OUTPUT_FILE = Path("drivers.json")
+
+# 11 teams x 2 drivers. Fail rather than save a partial grid.
+EXPECTED_DRIVERS = 22
 
 HEADERS = {
     "User-Agent": (
@@ -21,20 +24,6 @@ HEADERS = {
         "Chrome/131.0.0.0 Safari/537.36"
     )
 }
-
-TEAMS = [
-    "Red Bull Racing",
-    "Haas F1 Team",
-    "Aston Martin",
-    "Racing Bulls",
-    "Mercedes",
-    "Ferrari",
-    "McLaren",
-    "Alpine",
-    "Audi",
-    "Williams",
-    "Cadillac",
-]
 
 
 def normalize(value):
@@ -46,12 +35,7 @@ def normalize(value):
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
-def get_image_url(link):
-    image = link.find("img")
-
-    if not image:
-        return None
-
+def get_image_url(image):
     url = (
         image.get("src")
         or image.get("data-src")
@@ -107,33 +91,65 @@ def get_image_url(link):
 def fetch_api_drivers(session):
     print("Fetching Jolpica driver data...")
 
-    response = session.get(
-        API_URL,
-        headers=HEADERS,
-        timeout=30,
-    )
-    response.raise_for_status()
+    drivers = []
+    offset = 0
+    total = 0
 
-    data = response.json()
+    # The API may return fewer records than requested (it returned 30 of 36),
+    # so keep paging until we have everything.
+    while True:
+        response = session.get(
+            API_URL,
+            params={"limit": API_PAGE_SIZE, "offset": offset},
+            headers=HEADERS,
+            timeout=30,
+        )
+        response.raise_for_status()
 
-    drivers = data["MRData"]["DriverTable"]["Drivers"]
+        mr_data = response.json()["MRData"]
+        page = mr_data["DriverTable"]["Drivers"]
+        total = int(mr_data["total"])
 
-    # Index API records by normalized family name.
+        drivers.extend(page)
+        offset += len(page)
+
+        print(f"  Fetched {len(drivers)}/{total}")
+
+        if not page or offset >= total:
+            break
+
+    if len(drivers) < total:
+        raise RuntimeError(
+            f"API returned {len(drivers)} of {total} drivers."
+        )
+
+    # Index by normalized family name. Values are lists so that shared
+    # surnames don't crash the script.
     indexed = {}
 
     for driver in drivers:
         key = normalize(driver["familyName"])
-
-        if key in indexed:
-            raise RuntimeError(
-                f"Duplicate API surname: {driver['familyName']}"
-            )
-
-        indexed[key] = driver
-
-    print(f"  Retrieved {len(drivers)} API records")
+        indexed.setdefault(key, []).append(driver)
 
     return indexed
+
+
+def find_api_driver(api_drivers, proper_name):
+    parts = proper_name.split()
+    candidates = api_drivers.get(normalize(parts[-1]), [])
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # Several drivers share this surname: match on first name instead.
+    first = normalize(parts[0]) if len(parts) > 1 else ""
+
+    if first:
+        for candidate in candidates:
+            if first in normalize(candidate["givenName"]):
+                return candidate
+
+    return None
 
 
 def scrape_f1_drivers(session):
@@ -152,11 +168,9 @@ def scrape_f1_drivers(session):
     seen = set()
 
     for link in soup.find_all("a", href=True):
-        href = link["href"]
-
         match = re.search(
-            r"/en/drivers/([a-z0-9-]+)/?",
-            href,
+            r"/en/drivers/([a-z0-9-]+)/?$",
+            link["href"],
         )
 
         if not match:
@@ -167,45 +181,37 @@ def scrape_f1_drivers(session):
         if slug in seen:
             continue
 
-        image_url = get_image_url(link)
+        image = link.find("img")
+
+        if not image:
+            continue
+
+        image_url = get_image_url(image)
 
         if not image_url:
             continue
 
-        card_text = re.sub(
-            r"\s+",
-            " ",
-            link.get_text(" ", strip=True),
-        ).strip()
+        # The <img alt> is the driver's name, e.g. "Rafael Câmara".
+        proper_name = (image.get("alt") or "").strip()
 
-        # Identify and remove the constructor suffix.
-        constructor = None
-
-        for team in TEAMS:
-            if card_text.lower().endswith(team.lower()):
-                constructor = team
-                proper_name = card_text[:-len(team)].strip()
-                break
-        else:
-            print(f"  Skipping unrecognized team: {card_text}")
-            continue
+        if not proper_name:
+            # Fallback: first/last name are the first two <p> tags.
+            paragraphs = [
+                p.get_text(strip=True) for p in link.find_all("p")
+            ]
+            proper_name = " ".join(paragraphs[:2]).strip()
 
         if not proper_name:
             continue
 
-        surname = normalize(proper_name.split()[-1])
-
         drivers.append({
             "properName": proper_name,
-            "surname": surname,
-            "constructor": constructor,
             "image_url": image_url,
-            "slug": slug,
         })
 
         seen.add(slug)
 
-        print(f"  Found {proper_name} - {constructor}")
+        print(f"  Found {proper_name}")
 
     return drivers
 
@@ -216,25 +222,33 @@ def main():
         api_drivers = fetch_api_drivers(session)
         f1_drivers = scrape_f1_drivers(session)
 
+        if len(f1_drivers) < EXPECTED_DRIVERS:
+            raise RuntimeError(
+                f"Only found {len(f1_drivers)} drivers on Formula1.com "
+                f"(expected {EXPECTED_DRIVERS}). "
+                "drivers.json was not changed."
+            )
+
         output = []
         unmatched = []
 
         for scraped in f1_drivers:
-            api_driver = api_drivers.get(scraped["surname"])
+            api_driver = find_api_driver(
+                api_drivers,
+                scraped["properName"],
+            )
 
             if not api_driver:
                 unmatched.append(scraped["properName"])
                 continue
 
-            full_name = (
-                f"{api_driver['givenName']} "
-                f"{api_driver['familyName']}"
-            )
-
             output.append({
                 "properName": scraped["properName"],
                 "code": api_driver.get("code"),
-                "fullName": full_name,
+                "fullName": (
+                    f"{api_driver['givenName']} "
+                    f"{api_driver['familyName']}"
+                ),
                 "dateOfBirth": api_driver.get("dateOfBirth"),
                 "driverId": api_driver.get("driverId"),
                 "permanentNumber": api_driver.get("permanentNumber"),
@@ -247,11 +261,6 @@ def main():
                 "Could not match these F1 drivers to the API:\n"
                 + "\n".join(f"  - {name}" for name in unmatched)
                 + "\ndrivers.json was not changed."
-            )
-
-        if not output:
-            raise RuntimeError(
-                "No drivers found. drivers.json was not changed."
             )
 
         OUTPUT_FILE.write_text(
