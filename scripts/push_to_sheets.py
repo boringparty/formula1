@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 import gspread
@@ -15,6 +16,37 @@ SHEET_TAB = "results"
 JSON_FILE = Path(__file__).resolve().parent.parent / "current.json"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 MIN_RACE_ROWS = 10  # Avoid replacing results with a partial/pre-race response.
+
+
+def numeric_value(value):
+    """Return an integer for whole-number fields, or blank when unavailable."""
+    if value is None or str(value).strip() == "":
+        return ""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return ""
+    return int(number) if number.is_integer() else number
+
+
+def duration_value(value):
+    """Convert HH:MM:SS.mmm (or M:SS.mmm) into a Sheets duration serial."""
+    if value is None or str(value).strip() == "":
+        return ""
+
+    value = str(value).strip()
+    match = re.fullmatch(r"(?:(\\d+):)?(\\d+):([0-5]\\d)(?:\\.(\\d+))?", value)
+    if not match:
+        logging.warning("Unrecognized fastest-lap duration %r; writing blank.", value)
+        return ""
+
+    hours, minutes, seconds, fraction = match.groups()
+    hours = int(hours or 0)
+    minutes = int(minutes)
+    seconds = int(seconds)
+    fractional_seconds = float(f"0.{fraction}") if fraction else 0.0
+    total_seconds = hours * 3600 + minutes * 60 + seconds + fractional_seconds
+    return total_seconds / 86400  # Google Sheets stores durations as fractions of a day.
 
 
 def load_payload() -> dict:
@@ -83,11 +115,11 @@ def main() -> None:
             [
                 d.get("driverName", ""),
                 d.get("constructorName", ""),
-                d.get("grid", ""),
-                d.get("race", ""),
+                numeric_value(d.get("grid", "")),
+                numeric_value(d.get("race", "")),
                 d.get("status", ""),
-                d.get("laps", ""),
-                d.get("fastestLap", ""),
+                numeric_value(d.get("laps", "")),
+                duration_value(d.get("fastestLap", "")),
             ]
             for d in drivers
         ]
@@ -97,6 +129,11 @@ def main() -> None:
             range_name="E2",
             value_input_option="RAW",
         )
+        # Ensure numeric fields are stored/displayed as numbers, not text.
+        worksheet.format("G2:H", {"numberFormat": {"type": "NUMBER", "pattern": "0"}})
+        worksheet.format("J2:J", {"numberFormat": {"type": "NUMBER", "pattern": "0"}})
+        worksheet.format("K2:K", {"numberFormat": {"type": "TIME", "pattern": "[hh]:mm:ss.000"}})
+
         logging.info(
             "Updated race results (%d drivers; %d with race data).",
             len(race_rows),
