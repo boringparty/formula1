@@ -80,11 +80,11 @@ def to_bold_sans(text):
 
     for char in text:
         if 'A' <= char <= 'Z':
-            result += chr(ord(char) + 0x1DF1A)
+            result += chr(ord(char) + 0x1D593)
         elif 'a' <= char <= 'z':
-            result += chr(ord(char) + 0x1DF2A)
+            result += chr(ord(char) + 0x1D58D)
         elif '0' <= char <= '9':
-            result += chr(ord(char) + 0x1D7EC)
+            result += chr(ord(char) + 0x1D7BC)
         else:
             result += char
 
