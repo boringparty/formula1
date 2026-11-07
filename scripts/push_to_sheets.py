@@ -21,7 +21,7 @@ MIN_RACE_ROWS = 10  # Avoid replacing results with a partial/pre-race response.
 
 
 def numeric_value(value):
-    """Convert whole-number fields to actual numbers."""
+    """Convert numeric fields to actual numbers."""
     if value is None or str(value).strip() == "":
         return ""
 
@@ -140,18 +140,18 @@ def main() -> None:
     drivers = payload["drivers"]
     worksheet = get_worksheet()
 
-    # Preliminary grid: driver names only, in grid order.
-    grid_drivers = [
+    # Preliminary grid: use qualifying position until the official grid is available.
+    qualifying_drivers = [
         d for d in drivers
-        if str(d.get("grid", "")).strip().isdigit()
+        if str(d.get("qualy", "")).strip().isdigit()
     ]
 
-    grid_drivers.sort(key=lambda d: int(d["grid"]))
+    qualifying_drivers.sort(key=lambda d: int(d["qualy"]))
 
-    if grid_drivers:
+    if qualifying_drivers:
         grid_rows = [
             [d.get("driverName", "")]
-            for d in grid_drivers
+            for d in qualifying_drivers
         ]
 
         worksheet.batch_clear(["B2:B"])
@@ -163,11 +163,13 @@ def main() -> None:
         )
 
         logging.info(
-            "Updated preliminary grid (%d drivers).",
+            "Updated preliminary grid from qualifying results (%d drivers).",
             len(grid_rows),
         )
     else:
-        logging.info("No preliminary-grid data found; B:B left unchanged.")
+        logging.info(
+            "No qualifying positions found; B2:B left unchanged."
+        )
 
     # Race results: require a substantial classification before replacing old data.
     race_data_count = sum(
