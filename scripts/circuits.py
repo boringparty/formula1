@@ -52,14 +52,14 @@ CIRCUITS = {
     'belgian grand prix':             ('spa',          'Circuit de Spa-Francorchamps',       'Spa',         'Belgium',              ['belgium']),
     'hungarian grand prix':           ('hungaroring',  'Hungaroring',                        'Budapest',    'Hungary',              ['hungary']),
     'dutch grand prix':               ('zandvoort',    'Circuit Zandvoort',                  'Zandvoort',   'Netherlands',          ['netherlands']),
-    'italian grand prix':             ('monza',        'Autodromo Nazionale Monza',          'Monza',       'Italy',                ['italy']),
+    'italian grand prix':             ('monza',        'Autodromo Nazionale Monza',          'Monza',        'Italy',                ['italy']),
     'spanish grand prix':             ('madring',      'Madring',                            'Madrid',      'Spain',                ['spain']),
     'azerbaijan grand prix':          ('baku',         'Baku City Circuit',                  'Baku',        'Azerbaijan',           ['azerbaijan']),
     'bahrain grand prix (malaysia)':  ('sepang',       'Sepang International Circuit',       'Sepang',      'Malaysia',             ['bahrain']),
     'singapore grand prix':           ('marina_bay',   'Marina Bay Street Circuit',          'Singapore',   'Singapore',            ['singapore']),
     'united states grand prix':       ('americas',     'Circuit of the Americas',            'Austin',      'United States',        ['united-states']),
     'mexico city grand prix':         ('rodriguez',    'Autódromo Hermanos Rodríguez',       'Mexico City', 'Mexico',               ['mexico']),
-    'brazilian grand prix':           ('interlagos',   'Autódromo José Carlos Pace',         'São Paulo',   'Brazil',               ['brazil']),
+    'brazilian grand prix':           ('interlagos',   'Autódromo José Carlos Pace',          'São Paulo',   'Brazil',               ['brazil']),
     'las vegas grand prix':           ('vegas',        'Las Vegas Strip Circuit',            'Las Vegas',   'United States',        ['las-vegas']),
     'qatar grand prix':               ('losail',       'Lusail International Circuit',       'Lusail',      'Qatar',                ['qatar']),
     'abu dhabi grand prix':           ('yas_marina',   'Yas Marina Circuit',                 'Abu Dhabi',   'United Arab Emirates', ['abu-dhabi', 'united-arab-emirates']),
@@ -237,9 +237,18 @@ def parse_circuit_page(session: requests.Session, page_url: str) -> dict:
         if r.status_code != 200:
             return details
         soup = BeautifulSoup(r.text, 'html.parser')
-        img_tag = soup.select_one('div img[src*="track"]')
+
+        # Specifically select the detailed circuit-layout image, not a trackside photo.
+        img_tag = soup.find(
+            'img',
+            src=re.compile(
+                rf'/{SEASON}/track/[^/]*detailed\.(?:webp|png|jpe?g)',
+                re.IGNORECASE
+            )
+        )
         if img_tag and img_tag.get('src'):
             details['image_url'] = transform_track_image(img_tag['src'])
+
         dl = soup.select_one('dl')
         if dl:
             for container in dl.select('div'):
