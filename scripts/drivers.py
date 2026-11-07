@@ -1,343 +1,321 @@
-
-#!/usr/bin/env python3
-"""Build drivers.json from the F1 driver listing and Jolpica API."""
-
-from __future__ import annotations
-
 import json
-import os
 import re
 import unicodedata
-from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
 
-# Configuration -------------------------------------------------------------
-
-SEASON = int(os.getenv("F1_SEASON", "2026"))
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT = Path(os.getenv("F1_DRIVERS_OUTPUT", str(REPO_ROOT / "drivers.json")))
-
-JOLPICA = "https://api.jolpi.ca/ergast/f1"
-F1_DRIVERS_URL = "https://www.formula1.com/en/drivers"
-
-TIMEOUT = 30
+DRIVERS_URL = "https://www.formula1.com/en/drivers"
+BASE_URL = "https://www.formula1.com"
+OUTPUT_FILE = Path("drivers.json")
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) "
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
+        "Chrome/131.0.0.0 Safari/537.36"
     )
 }
 
-IMAGE_TRANSFORMS = "f_jpg/c_lfill,w_64,h_64,g_north/q_100"
 
-IMAGE_FALLBACK = (
-    "d_common:f1:2026:fallback:driver:"
-    "2026fallbackdriverright.webp"
-)
-
-
-# Helpers -------------------------------------------------------------------
-
-def normalize_name(value: str) -> str:
-    """Normalize names for matching between F1 and Jolpica."""
-
+def normalize_name(value):
     value = unicodedata.normalize("NFKD", value)
-    value = "".join(
-        char for char in value
-        if not unicodedata.combining(char)
+    value = "".join(c for c in value if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", value).strip().lower()
+
+
+def get_page(session, url):
+    response = session.get(url, headers=HEADERS, timeout=30)
+    response.raise_for_status()
+    return response.text
+
+
+def format_f1_image_url(url):
+    if not url or "media.formula1.com" not in url:
+        return url
+
+    # Keep the original asset path and version, but request a JPG.
+    url = re.sub(r"/f_[^,/]+", "", url)
+    url = re.sub(r"/c_[^,/]+", "", url)
+    url = re.sub(r"/q_[^,/]+", "", url)
+
+    url = url.replace(
+        "/image/upload/",
+        "/image/upload/f_jpg/c_lfill,w_64,h_64,g_north/q_100/",
+        1,
     )
 
-    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    # Change only the final image extension.
+    url = re.sub(r"\.(?:webp|png|jpeg)(?=($|\?))", ".jpg", url, flags=re.I)
+
+    return url
 
 
-def get_image_url(image) -> str | None:
-    """Extract the best available image URL."""
+def get_image_url(link):
+    image = link.find("img")
 
-    # Prefer the largest image in srcset.
-    srcset = image.get("srcset") or image.get("data-srcset")
+    if not image:
+        return None
 
-    if srcset:
-        candidates = []
+    url = (
+        image.get("src")
+        or image.get("data-src")
+        or image.get("data-lazy-src")
+    )
 
-        for item in srcset.split(","):
-            parts = item.strip().split()
+    if not url and image.get("srcset"):
+        url = image["srcset"].split(",")[0].strip().split(" ")[0]
 
-            if not parts:
-                continue
+    if not url:
+        return None
 
-            url = parts[0]
-            width_match = re.search(r"(\d+)w", item)
-            width = int(width_match.group(1)) if width_match else 0
+    return format_f1_image_url(urljoin(BASE_URL, url))
 
-            candidates.append((width, url))
 
-        if candidates:
-            return max(candidates, key=lambda item: item[0])[1]
+def extract_driver_code(data, driver_name):
+    """
+    Search embedded page data for a driver code.
+    Falls back to the first three letters of the surname.
+    """
 
-    # Check lazy-loading attributes.
-    for attribute in ("src", "data-src", "data-lazy-src"):
-        url = image.get(attribute)
+    name_key = normalize_name(driver_name)
+    matches = []
 
-        if url and not url.startswith("data:"):
-            return url
+    def walk(value):
+        if isinstance(value, dict):
+            # Look for objects containing both a driver name and code.
+            name_values = [
+                str(v)
+                for k, v in value.items()
+                if k.lower() in ("name", "fullname", "full_name", "drivername")
+            ]
 
-    # Check picture source elements.
-    picture = image.find_parent("picture")
+            if any(normalize_name(n) == name_key for n in name_values):
+                for key, item in value.items():
+                    if key.lower() in (
+                        "code",
+                        "drivercode",
+                        "driver_code",
+                        "abbreviation",
+                    ):
+                        if isinstance(item, str) and item.strip():
+                            matches.append(item.strip().upper())
 
-    if picture:
-        for source in picture.find_all("source"):
-            srcset = source.get("srcset")
+            for item in value.values():
+                walk(item)
 
-            if srcset:
-                return srcset.split(",")[0].strip().split()[0]
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(data)
+
+    if matches:
+        return matches[0]
+
+    surname = driver_name.split()[-1]
+    return normalize_name(surname).replace(" ", "")[:3].upper()
+
+
+def extract_embedded_data(soup):
+    """Collect JSON embedded in the page."""
+
+    data = []
+
+    for script in soup.find_all("script"):
+        content = script.string or script.get_text()
+
+        if not content:
+            continue
+
+        content = content.strip()
+
+        if not content.startswith(("{", "[")):
+            continue
+
+        try:
+            data.append(json.loads(content))
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+    return data
+
+
+def scrape_driver_profile(session, profile_url, driver_name, constructor):
+    """
+    Read the driver's permanent number from their Formula1.com profile.
+    """
+
+    html = get_page(session, profile_url)
+    soup = BeautifulSoup(html, "html.parser")
+
+    page_text = soup.get_text(" ", strip=True)
+
+    # On the profile page, the number appears after the driver's team.
+    pattern = (
+        re.escape(driver_name)
+        + r".*?"
+        + re.escape(constructor)
+        + r"\s+(\d{1,2})\b"
+    )
+
+    match = re.search(pattern, page_text, flags=re.IGNORECASE)
+
+    if match:
+        return int(match.group(1))
+
+    # Fallback: inspect embedded page data for a permanent number.
+    embedded_data = extract_embedded_data(soup)
+
+    number_keys = (
+        "permanentnumber",
+        "permanent_number",
+        "drivernumber",
+        "driver_number",
+        "number",
+    )
+
+    def find_number(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key.lower() in number_keys:
+                    if str(item).isdigit():
+                        return int(item)
+
+            for item in value.values():
+                result = find_number(item)
+                if result is not None:
+                    return result
+
+        elif isinstance(value, list):
+            for item in value:
+                result = find_number(item)
+                if result is not None:
+                    return result
+
+        return None
+
+    for item in embedded_data:
+        number = find_number(item)
+        if number is not None:
+            return number
 
     return None
 
 
-def format_f1_image_url(image_url: str) -> str:
-    """Apply F1 CDN crop, resizing, quality and JPG conversion."""
+def scrape_f1_drivers(session):
+    print("Scraping current F1 driver directory...")
 
-    parsed = urlsplit(image_url)
-
-    if parsed.netloc not in (
-        "media.formula1.com",
-        "www.media.formula1.com",
-    ):
-        raise ValueError(f"Unexpected image host: {parsed.netloc}")
-
-    marker = "/image/upload/"
-
-    if marker not in parsed.path:
-        raise ValueError(f"Unexpected image URL: {image_url}")
-
-    asset_path = parsed.path.split(marker, 1)[1]
-
-    # Preserve the original versioned asset path.
-    version_match = re.search(r"(?:^|/)(v\d+/)", asset_path)
-
-    if not version_match:
-        raise ValueError(f"No version segment found: {image_url}")
-
-    asset_path = asset_path[version_match.start():].lstrip("/")
-
-    # Ensure the actual URL ends in .jpg.
-    asset_path = re.sub(
-        r"\.(webp|png|avif|jpeg|jpg)$",
-        ".jpg",
-        asset_path,
-        flags=re.IGNORECASE,
-    )
-
-    return (
-        f"https://media.formula1.com/image/upload/"
-        f"{IMAGE_TRANSFORMS}/"
-        f"{IMAGE_FALLBACK}/"
-        f"{asset_path}"
-    )
-
-
-# F1 driver listing scraper -------------------------------------------------
-
-def scrape_f1_drivers(session: requests.Session) -> list:
-    """
-    Scrape ONLY driver cards from the official F1 drivers listing.
-
-    Extracts:
-        name
-        constructor
-        image
-    """
-
-    response = session.get(F1_DRIVERS_URL, timeout=TIMEOUT)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, "html.parser")
+    html = get_page(session, DRIVERS_URL)
+    soup = BeautifulSoup(html, "html.parser")
+    embedded_data = extract_embedded_data(soup)
 
     drivers = []
+    seen = set()
 
     for link in soup.find_all("a", href=True):
+        href = link["href"]
 
-        href = urlsplit(urljoin(F1_DRIVERS_URL, link["href"])).path
-
-        # Only accept individual driver profile links.
-        match = re.fullmatch(
-            r"/en/drivers/([a-z0-9-]+)/?",
-            href,
-            flags=re.IGNORECASE,
-        )
+        match = re.search(r"/en/drivers/([a-z0-9-]+)/?", href)
 
         if not match:
             continue
 
         slug = match.group(1)
 
-        # Derive the driver's name from their profile URL.
-        name_from_slug = slug.replace("-", " ").title()
+        if slug in ("", "all"):
+            continue
 
-        # Extract constructor from the driver card text.
+        image = get_image_url(link)
+
+        if not image:
+            continue
+
+        name = slug.replace("-", " ").title()
+
+        image_tag = link.find("img")
+        if image_tag and image_tag.get("alt"):
+            alt = image_tag["alt"].strip()
+
+            if len(alt.split()) >= 2:
+                name = alt
+
+        name = re.sub(r"\s+", " ", name).strip()
+
+        if normalize_name(name) in seen:
+            continue
+
+        seen.add(normalize_name(name))
+
+        # The directory card contains the driver name followed by constructor.
         card_text = link.get_text(" ", strip=True)
-        text_parts = card_text.split()
-        name_parts = name_from_slug.split()
+        card_text = re.sub(r"\s+", " ", card_text).strip()
+
+        name_position = card_text.lower().find(name.lower())
 
         constructor = None
 
-        if (
-            len(text_parts) > len(name_parts)
-            and normalize_name(" ".join(text_parts[:len(name_parts)]))
-            == normalize_name(name_from_slug)
-        ):
-            constructor = " ".join(text_parts[len(name_parts):]).strip()
+        if name_position >= 0:
+            constructor = card_text[
+                name_position + len(name):
+            ].strip()
 
-        # Only use the image inside this specific driver card.
-        image = link.find("img")
+        # Remove accessibility text associated with national flags.
+        if constructor:
+            constructor = re.sub(
+                r"\s+Flag of\s+.*$",
+                "",
+                constructor,
+                flags=re.IGNORECASE,
+            ).strip()
 
-        if not image:
-            print(f"Warning: No image found for {name_from_slug}")
-            continue
+        profile_url = urljoin(BASE_URL, href)
 
-        image_url = get_image_url(image)
+        print(f"  Found {name} ({constructor})")
 
-        if not image_url:
-            print(f"Warning: No image URL found for {name_from_slug}")
-            continue
+        # Driver code from embedded Formula1 page data.
+        code = None
 
-        image_url = urljoin(F1_DRIVERS_URL, image_url)
+        for item in embedded_data:
+            code = extract_driver_code(item, name)
+            if code:
+                break
 
-        try:
-            image_url = format_f1_image_url(image_url)
-        except ValueError as error:
-            print(f"Warning: {name_from_slug}: {error}")
-            continue
-
-        drivers.append({
-            "name": name_from_slug,
-            "constructor": constructor,
-            "image": image_url,
-        })
-
-    # Remove accidental duplicate profile links.
-    unique_drivers = {}
-    for driver in drivers:
-        unique_drivers[normalize_name(driver["name"])] = driver
-
-    drivers = list(unique_drivers.values())
-
-    if not drivers:
-        raise RuntimeError(
-            "No driver cards found on the F1 drivers page. "
-            "The page structure may have changed."
+        # Permanent number from the driver's profile page.
+        permanent_number = scrape_driver_profile(
+            session,
+            profile_url,
+            name,
+            constructor or "",
         )
 
-    print(f"Scraped {len(drivers)} drivers from Formula1.com")
+        drivers.append({
+            "name": name,
+            "code": code,
+            "permanentNumber": permanent_number,
+            "constructor": constructor,
+            "image": image,
+        })
 
     return drivers
 
 
-# Jolpica API ----------------------------------------------------------------
-
-def fetch_jolpica_drivers(session: requests.Session) -> dict:
-    """Fetch API driver information indexed by normalized full name."""
-
-    response = session.get(
-        f"{JOLPICA}/{SEASON}/drivers.json?limit=100",
-        timeout=TIMEOUT,
-    )
-    response.raise_for_status()
-
-    api_drivers = (
-        response.json()
-        .get("MRData", {})
-        .get("DriverTable", {})
-        .get("Drivers", [])
-    )
-
-    if not api_drivers:
-        raise RuntimeError("Jolpica returned no drivers.")
-
-    drivers_by_name = {}
-
-    for driver in api_drivers:
-        full_name = (
-            f"{driver.get('givenName', '')} "
-            f"{driver.get('familyName', '')}"
-        ).strip()
-
-        drivers_by_name[normalize_name(full_name)] = driver
-
-    print(f"Retrieved {len(api_drivers)} drivers from Jolpica")
-
-    return drivers_by_name
-
-
-# Main ----------------------------------------------------------------------
-
 def main():
-    session = requests.Session()
-    session.headers.update(HEADERS)
+    with requests.Session() as session:
+        drivers = scrape_f1_drivers(session)
 
-    # Get the current driver roster and images from F1.
-    f1_drivers = scrape_f1_drivers(session)
+    if not drivers:
+        raise RuntimeError("No drivers were found. drivers.json was not changed.")
 
-    # Get driver codes and permanent numbers from Jolpica.
-    api_drivers = fetch_jolpica_drivers(session)
-
-    final_drivers = []
-
-    for f1_driver in f1_drivers:
-
-        name = f1_driver["name"]
-        normalized_name = normalize_name(name)
-
-        api_driver = api_drivers.get(normalized_name)
-
-        if not api_driver:
-            print(f"Warning: No Jolpica match for {name}")
-
-        final_drivers.append({
-            "name": (
-                f"{api_driver.get('givenName', '')} "
-                f"{api_driver.get('familyName', '')}"
-            ).strip() if api_driver else name,
-
-            "code": api_driver.get("code") if api_driver else None,
-
-            "permanentNumber": (
-                api_driver.get("permanentNumber")
-                if api_driver else None
-            ),
-
-            "constructor": f1_driver["constructor"],
-
-            "image": f1_driver["image"],
-        })
-
-    # Output only the drivers currently listed on Formula1.com.
-    payload = {
-        "season": SEASON,
-        "updated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "drivers": final_drivers,
-    }
-
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-
-    OUTPUT.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+    OUTPUT_FILE.write_text(
+        json.dumps(drivers, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
-    print(
-        "\nDriver directory updated successfully."
-        f"\nDrivers: {len(final_drivers)}"
-        f"\nOutput: {OUTPUT}"
-    )
+    print(f"\nSaved {len(drivers)} drivers to {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":
