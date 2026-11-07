@@ -8,7 +8,6 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-
 F1_URL = "https://www.formula1.com/en/drivers"
 API_BASE = "https://api.jolpi.ca/ergast/f1/2026"
 API_PAGE_SIZE = 100
@@ -328,7 +327,8 @@ def main():
                 "permanentNumber": api_driver.get("permanentNumber"),
                 "nationality": api_driver.get("nationality"),
                 "constructor": (
-                    constructor["name"] if constructor else None
+                    re.sub(r" F1 Team$", "", constructor["name"])
+                    if constructor else None
                 ),
                 "constructorId": (
                     constructor["constructorId"] if constructor else None
