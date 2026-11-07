@@ -75,20 +75,20 @@ def transform_track_image(url: str) -> str:
     return re.sub(r'h_\d+', 'h_200', url)
 
 
-def to_bold_sans(text: str) -> str:
-    out = []
-    for c in text:
-        code = ord(c)
-        if ord('A') <= code <= ord('Z'):
-            out.append(chr(0x1D5A0 + (code - ord('A'))))
-        elif ord('a') <= code <= ord('z'):
-            out.append(chr(0x1D5BA + (code - ord('a'))))
-        elif ord('0') <= code <= ord('9'):
-            out.append(chr(0x1D7EC + (code - ord('0'))))
-        else:
-            out.append(c)
-    return ''.join(out)
+def to_bold_sans(text):
+    result = ''
 
+    for char in text:
+        if 'A' <= char <= 'Z':
+            result += chr(ord(char) + 0x1DF1A)
+        elif 'a' <= char <= 'z':
+            result += chr(ord(char) + 0x1DF2A)
+        elif '0' <= char <= '9':
+            result += chr(ord(char) + 0x1D7EC)
+        else:
+            result += char
+
+    return result
 
 def fmt_ics_dt(dt: datetime | None) -> str:
     """yyyy-mm-dd hh:mm (UTC), or '' when the session isn't in the calendar."""
