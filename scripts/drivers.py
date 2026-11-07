@@ -36,7 +36,7 @@ HEADERS = {
     )
 }
 
-IMAGE_TRANSFORMS = "c_lfill,w_64,h_64,g_north/q_100"
+IMAGE_TRANSFORMS = "f_jpg/c_lfill,w_64,h_64,g_north/q_100"
 IMAGE_FALLBACK = (
     "d_common:f1:2026:fallback:driver:"
     "2026fallbackdriverright.webp"
