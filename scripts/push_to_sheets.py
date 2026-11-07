@@ -130,6 +130,18 @@ def get_worksheet():
     return client.open_by_key(SHEET_ID).worksheet(SHEET_TAB)
 
 
+def valid_position(value):
+    """Return an integer position, or None if unavailable."""
+    if value is None or str(value).strip() == "":
+        return None
+
+    try:
+        position = int(value)
+        return position if position > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -140,21 +152,51 @@ def main() -> None:
     drivers = payload["drivers"]
     worksheet = get_worksheet()
 
-    # Preliminary grid: use qualifying position until the official grid is available.
-    qualifying_drivers = [
-        d for d in drivers
-        if str(d.get("qualy", "")).strip().isdigit()
+    # GRID: official starting grid takes priority over qualifying order.
+    official_grid = [
+        (d, valid_position(d.get("grid")))
+        for d in drivers
+    ]
+    official_grid = [
+        (d, position)
+        for d, position in official_grid
+        if position is not None
     ]
 
-    qualifying_drivers.sort(key=lambda d: int(d["qualy"]))
+    qualifying_grid = [
+        (d, valid_position(d.get("qualy")))
+        for d in drivers
+    ]
+    qualifying_grid = [
+        (d, position)
+        for d, position in qualifying_grid
+        if position is not None
+    ]
 
-    if qualifying_drivers:
+    if official_grid:
+        selected_grid = official_grid
+        grid_source = "official starting grid"
+
+    elif qualifying_grid:
+        selected_grid = qualifying_grid
+        grid_source = "qualifying results"
+
+    else:
+        selected_grid = []
+        grid_source = None
+
+    if selected_grid:
+        selected_grid.sort(key=lambda item: item[1])
+
         grid_rows = [
-            [d.get("driverName", "")]
-            for d in qualifying_drivers
+            [
+                driver.get("driverName", ""),
+                driver.get("constructorName", ""),
+            ]
+            for driver, _ in selected_grid
         ]
 
-        worksheet.batch_clear(["B2:B"])
+        worksheet.batch_clear(["B2:C"])
 
         worksheet.update(
             values=grid_rows,
@@ -163,15 +205,17 @@ def main() -> None:
         )
 
         logging.info(
-            "Updated preliminary grid from qualifying results (%d drivers).",
+            "Updated grid from %s (%d drivers).",
+            grid_source,
             len(grid_rows),
         )
+
     else:
         logging.info(
-            "No qualifying positions found; B2:B left unchanged."
+            "No official grid or qualifying positions found; B:C left unchanged."
         )
 
-    # Race results: require a substantial classification before replacing old data.
+    # RACE RESULTS: require a substantial classification before replacing old data.
     race_data_count = sum(
         1
         for d in drivers
