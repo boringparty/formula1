@@ -1,5 +1,6 @@
 import json
 import re
+import time
 import unicodedata
 from pathlib import Path
 from urllib.parse import urljoin
@@ -9,7 +10,7 @@ from bs4 import BeautifulSoup
 
 
 F1_URL = "https://www.formula1.com/en/drivers"
-API_URL = "https://api.jolpi.ca/ergast/f1/2026/drivers.json"
+API_BASE = "https://api.jolpi.ca/ergast/f1/2026"
 API_PAGE_SIZE = 100
 
 OUTPUT_FILE = Path("drivers.json")
@@ -88,40 +89,71 @@ def get_image_url(image):
     )
 
 
-def fetch_api_drivers(session):
-    print("Fetching Jolpica driver data...")
-
-    drivers = []
-    offset = 0
-    total = 0
-
-    # The API may return fewer records than requested (it returned 30 of 36),
-    # so keep paging until we have everything.
-    while True:
+def api_get(session, url, params=None):
+    """GET with a few retries, since Jolpica rate-limits bursts."""
+    for attempt in range(5):
         response = session.get(
-            API_URL,
-            params={"limit": API_PAGE_SIZE, "offset": offset},
+            url,
+            params=params,
             headers=HEADERS,
             timeout=30,
         )
-        response.raise_for_status()
 
-        mr_data = response.json()["MRData"]
-        page = mr_data["DriverTable"]["Drivers"]
+        if response.status_code == 429:
+            wait = 2 * (attempt + 1)
+            print(f"  Rate limited, waiting {wait}s...")
+            time.sleep(wait)
+            continue
+
+        response.raise_for_status()
+        return response.json()["MRData"]
+
+    raise RuntimeError(f"Still rate limited after retries: {url}")
+
+
+def fetch_all(session, url, table, key):
+    """Page through a Jolpica endpoint until every record is retrieved.
+
+    The API can return fewer records than requested (it returned 30 of 36
+    drivers), so keep paging until we have `total` records.
+    """
+    records = []
+    offset = 0
+
+    while True:
+        mr_data = api_get(
+            session,
+            url,
+            params={"limit": API_PAGE_SIZE, "offset": offset},
+        )
+        page = mr_data[table][key]
         total = int(mr_data["total"])
 
-        drivers.extend(page)
+        records.extend(page)
         offset += len(page)
-
-        print(f"  Fetched {len(drivers)}/{total}")
 
         if not page or offset >= total:
             break
 
-    if len(drivers) < total:
+    if len(records) < total:
         raise RuntimeError(
-            f"API returned {len(drivers)} of {total} drivers."
+            f"{url} returned {len(records)} of {total} records."
         )
+
+    return records
+
+
+def fetch_api_drivers(session):
+    print("Fetching Jolpica driver data...")
+
+    drivers = fetch_all(
+        session,
+        f"{API_BASE}/drivers.json",
+        "DriverTable",
+        "Drivers",
+    )
+
+    print(f"  Retrieved {len(drivers)} API records")
 
     # Index by normalized family name. Values are lists so that shared
     # surnames don't crash the script.
@@ -132,6 +164,41 @@ def fetch_api_drivers(session):
         indexed.setdefault(key, []).append(driver)
 
     return indexed
+
+
+def fetch_driver_constructors(session):
+    """Return {driverId: constructor} for the 2026 season."""
+    print("Fetching Jolpica constructor data...")
+
+    constructors = fetch_all(
+        session,
+        f"{API_BASE}/constructors.json",
+        "ConstructorTable",
+        "Constructors",
+    )
+
+    print(f"  Retrieved {len(constructors)} constructors")
+
+    mapping = {}
+
+    for constructor in constructors:
+        time.sleep(0.3)
+
+        drivers = fetch_all(
+            session,
+            f"{API_BASE}/constructors/{constructor['constructorId']}"
+            "/drivers.json",
+            "DriverTable",
+            "Drivers",
+        )
+
+        for driver in drivers:
+            # If a driver changed teams mid-season, the last one wins.
+            mapping[driver["driverId"]] = constructor
+
+        print(f"  {constructor['name']}: {len(drivers)} drivers")
+
+    return mapping
 
 
 def find_api_driver(api_drivers, proper_name):
@@ -220,6 +287,7 @@ def main():
     with requests.Session() as session:
 
         api_drivers = fetch_api_drivers(session)
+        driver_constructors = fetch_driver_constructors(session)
         f1_drivers = scrape_f1_drivers(session)
 
         if len(f1_drivers) < EXPECTED_DRIVERS:
@@ -231,6 +299,7 @@ def main():
 
         output = []
         unmatched = []
+        no_constructor = []
 
         for scraped in f1_drivers:
             api_driver = find_api_driver(
@@ -241,6 +310,11 @@ def main():
             if not api_driver:
                 unmatched.append(scraped["properName"])
                 continue
+
+            constructor = driver_constructors.get(api_driver["driverId"])
+
+            if not constructor:
+                no_constructor.append(scraped["properName"])
 
             output.append({
                 "properName": scraped["properName"],
@@ -253,6 +327,12 @@ def main():
                 "driverId": api_driver.get("driverId"),
                 "permanentNumber": api_driver.get("permanentNumber"),
                 "nationality": api_driver.get("nationality"),
+                "constructor": (
+                    constructor["name"] if constructor else None
+                ),
+                "constructorId": (
+                    constructor["constructorId"] if constructor else None
+                ),
                 "image_url": scraped["image_url"],
             })
 
@@ -261,6 +341,12 @@ def main():
                 "Could not match these F1 drivers to the API:\n"
                 + "\n".join(f"  - {name}" for name in unmatched)
                 + "\ndrivers.json was not changed."
+            )
+
+        if no_constructor:
+            print(
+                "\nWarning: the API has no constructor for:\n"
+                + "\n".join(f"  - {name}" for name in no_constructor)
             )
 
         OUTPUT_FILE.write_text(
