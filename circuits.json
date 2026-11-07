@@ -1,6 +1,6 @@
 {
   "season": 2026,
-  "generated_at_utc": "2026-11-02T04:50:52.838659+00:00",
+  "generated_at_utc": "2026-11-07T05:53:59.245220+00:00",
   "circuits": [
     {
       "round": "01",
@@ -630,7 +630,7 @@
         "holder": "Max Verstappen (2025)"
       },
       "race_distance": "309.958km",
-      "image_url": "https://media.formula1.com/image/upload/t_16by9Centre/c_fit,w_1584/q_auto/v1740000001/trackside-images/2025/F1_Grand_Prix_of_Las_Vegas/2248012550.webp"
+      "image_url": "https://media.formula1.com/image/upload/c_fit,h_200/q_auto/v1740000001/common/f1/2026/track/2026tracklasvegasdetailed.webp"
     },
     {
       "round": "22",
