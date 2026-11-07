@@ -79,28 +79,116 @@ def race_keywords(meta: dict) -> list[str]:
             out.append(n)
     return out
 
-def discover_race_id_from_index(season: int, kws: list[str]) -> int | None:
+def discover_race_page_from_index(season: int, kws: list[str]) -> tuple[int, str] | None:
+    """Find the official F1 race ID and URL slug for the requested event."""
     url = f"https://www.formula1.com/en/results/{season}/races"
     try:
-        r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-    except Exception as e:
-        logging.warning("Index request failed: %s", e)
-        return None
-    if r.status_code != 200:
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("F1 race index request failed: %s", exc)
         return None
 
-    pat = re.compile(rf'/results/{season}/races/(\d+)/([a-z0-9-]+)')
+    pattern = re.compile(rf'/results/{season}/races/(\d+)/([a-z0-9-]+)')
     seen = []
-    for m in pat.finditer(r.text):
-        item = (int(m.group(1)), m.group(2))
+    for match in pattern.finditer(response.text):
+        item = (int(match.group(1)), match.group(2))
         if item not in seen:
             seen.append(item)
 
-    for rid, slug in seen:
-        ns = norm(slug)
-        if len(ns) >= 4 and any(ns in k or k in ns for k in kws):
-            return rid
+    for race_id, slug in seen:
+        normalized_slug = norm(slug)
+        if len(normalized_slug) >= 4 and any(
+            normalized_slug in keyword or keyword in normalized_slug
+            for keyword in kws
+        ):
+            return race_id, slug
+
     return None
+
+
+def discover_race_id_from_index(season: int, kws: list[str]) -> int | None:
+    """Backward-compatible race ID lookup."""
+    race_page = discover_race_page_from_index(season, kws)
+    return race_page[0] if race_page else None
+
+
+def scrape_official_qualifying(season: int, meta: dict) -> dict[str, dict]:
+    """Scrape official qualifying positions and Q1/Q2/Q3 times by car number."""
+    race_page = discover_race_page_from_index(season, race_keywords(meta))
+    if not race_page:
+        logging.warning("Could not identify official F1 race page for qualifying.")
+        return {}
+
+    race_id, slug = race_page
+    url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/{slug}/qualifying"
+
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("Could not load official qualifying page %s: %s", url, exc)
+        return {}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    table = soup.find("table", id="results-table") or soup.find("table")
+    if not table:
+        logging.warning("No qualifying results table found at %s", url)
+        return {}
+
+    rows = table.find_all("tr")
+    if not rows:
+        return {}
+
+    headers = [norm(cell.get_text(" ", strip=True)) for cell in rows[0].find_all(["th", "td"])]
+
+    def column(*names):
+        return next((i for i, header in enumerate(headers) if header in names), None)
+
+    pos_idx = column("pos", "position")
+    no_idx = column("no", "number", "num")
+    driver_idx = column("driver")
+    team_idx = column("team")
+    q1_idx, q2_idx, q3_idx = column("q1"), column("q2"), column("q3")
+
+    if None in (pos_idx, no_idx, driver_idx, team_idx):
+        logging.warning("Official qualifying table is missing expected columns: %s", headers)
+        return {}
+
+    qualifying = {}
+    for row in rows[1:]:
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["td", "th"])]
+        needed = [i for i in (pos_idx, no_idx, driver_idx, team_idx, q1_idx, q2_idx, q3_idx) if i is not None]
+        if len(cells) <= max(needed):
+            continue
+
+        number = cells[no_idx].strip()
+        if not number.isdigit():
+            continue
+
+        driver_text = clean(cells[driver_idx])
+        driver_parts = driver_text.rsplit(" ", 1)
+        code = driver_parts[-1].upper() if len(driver_parts) == 2 and len(driver_parts[-1]) == 3 else ""
+        driver_name = driver_parts[0] if code else driver_text
+
+        qualifying[num_key(number)] = {
+            "qualy": cells[pos_idx],
+            "q1": cells[q1_idx] if q1_idx is not None else "",
+            "q2": cells[q2_idx] if q2_idx is not None else "",
+            "q3": cells[q3_idx] if q3_idx is not None else "",
+            "number": number,
+            "driverName": driver_name,
+            "code": code,
+            "constructorName": get_std_team(cells[team_idx]),
+        }
+
+    logging.info(
+        "Scraped %d qualifying records from official F1 page (%s).",
+        len(qualifying),
+        url,
+    )
+    return qualifying
+
 
 def scrape_official_fastest_laps(
     season: int,
@@ -225,62 +313,77 @@ def page_identifies_race(soup: BeautifulSoup, kws: list[str]) -> bool:
     return any(k in blob for k in kws)
 
 def scrape_official_f1_table(season: int, round_no: int, meta: dict, subpage: str) -> dict[str, str]:
-    """Scrapes either 'starting-grid' or 'race-result' table from formula1.com keyed by car number."""
+    """Scrape the official starting-grid or race-result table by car number."""
     kws = race_keywords(meta)
-    candidates: list[tuple[int, bool]] = []
-    override = os.getenv('F1_RACE_ID', '').strip()
+    candidates: list[tuple[int, str | None, bool]] = []
+
+    override = os.getenv("F1_RACE_ID", "").strip()
+    discovered_page = discover_race_page_from_index(season, kws)
+
     if override.isdigit():
-        candidates.append((int(override), True))
-    discovered = discover_race_id_from_index(season, kws)
-    if discovered:
-        candidates.append((discovered, True))
+        slug = discovered_page[1] if discovered_page and discovered_page[0] == int(override) else None
+        candidates.append((int(override), slug, True))
+
+    if discovered_page:
+        candidates.append((discovered_page[0], discovered_page[1], True))
+
     guess = F1_ID_BASE + round_no
     for delta in (0, 1, -1, 2, -2):
-        candidates.append((guess + delta, False))
+        candidates.append((guess + delta, None, False))
 
     tried = set()
-    for race_id, trusted in candidates:
+    for race_id, slug, trusted in candidates:
         if race_id in tried:
             continue
         tried.add(race_id)
-        url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/_/{subpage}"
+
+        # F1 result URLs use the race slug, not an underscore placeholder.
+        if not slug:
+            continue
+
+        url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/{slug}/{subpage}"
         try:
-            r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-            if r.status_code != 200:
+            response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            if response.status_code != 200:
                 continue
-            soup = BeautifulSoup(r.text, 'html.parser')
+
+            soup = BeautifulSoup(response.text, "html.parser")
             if not trusted and not page_identifies_race(soup, kws):
                 continue
-            table = soup.find('table')
+
+            table = soup.find("table", id="results-table") or soup.find("table")
             if not table:
                 continue
-            
-            pos_idx, no_idx = 0, 1
-            header = table.find('tr')
-            if header:
-                heads = [norm(c.get_text(' ', strip=True)) for c in header.find_all(['th', 'td'])]
-                for i, h in enumerate(heads):
-                    if h in ('pos', 'position'):
-                        pos_idx = i
-                    elif h in ('no', 'number', 'num'):
-                        no_idx = i
+
+            rows = table.find_all("tr")
+            if not rows:
+                continue
+
+            headers = [norm(c.get_text(" ", strip=True)) for c in rows[0].find_all(["th", "td"])]
+            pos_idx = next((i for i, h in enumerate(headers) if h in ("pos", "position")), 0)
+            no_idx = next((i for i, h in enumerate(headers) if h in ("no", "number", "num")), 1)
 
             data_map = {}
-            for row in table.find_all('tr'):
-                cells = [c.get_text(' ', strip=True) for c in row.find_all(['td', 'th'])]
+            for row in rows[1:]:
+                cells = [c.get_text(" ", strip=True) for c in row.find_all(["td", "th"])]
                 if len(cells) <= max(pos_idx, no_idx):
                     continue
-                pos, no = cells[pos_idx], cells[no_idx]
-                # Allow standard digits or retirement codes (NC, DNF, DSQ, etc.) for race results
-                if no.isdigit() and (pos.isdigit() or pos.upper() in ('NC', 'DNF', 'DSQ', 'EX')):
-                    data_map[num_key(no)] = pos
+
+                pos, number = cells[pos_idx], cells[no_idx]
+                if number.isdigit() and (
+                    pos.isdigit() or pos.upper() in ("NC", "DNF", "DSQ", "EX")
+                ):
+                    data_map[num_key(number)] = pos
+
             if data_map:
                 logging.info("Successfully scraped %s for race_id %s", subpage, race_id)
                 return data_map
-        except Exception as e:
-            logging.warning("Error scraping %s: %s", subpage, e)
-    return {}
 
+        except requests.RequestException as exc:
+            logging.warning("Error scraping %s: %s", url, exc)
+
+    logging.info("No official %s records available yet.", subpage)
+    return {}
 
 
 def _parse_ics_dt(value: str, params: str) -> datetime | None:
@@ -462,9 +565,19 @@ def main():
     # The scraper returns an empty mapping until the page/table is published.
     fastest_lap_map = scrape_official_fastest_laps(SEASON, active_meta)
 
-    # 3. Fetch qualifying session data
+    # 3. Fetch qualifying from Jolpica, with the official F1 page as fallback.
     qual_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/qualifying.json')
-    qual_results = qual_data.get('RaceTable', {}).get('Races', [{}])[0].get('QualifyingResults', [])
+    qual_races = qual_data.get('RaceTable', {}).get('Races', [])
+    qual_results = qual_races[0].get('QualifyingResults', []) if qual_races else []
+
+    if qual_results:
+        logging.info("Received %d qualifying records from Jolpica.", len(qual_results))
+    else:
+        logging.warning(
+            "Jolpica has no qualifying records for round %s; using official F1 page.",
+            active_round,
+        )
+
     qual_map = {}
     for q in qual_results:
         d_id = q.get('Driver', {}).get('driverId', '')
@@ -476,9 +589,41 @@ def main():
             'number': q.get('number', '')
         }
 
-    # 4. Fetch race classification from Jolpica API
+    official_qualifying_map = scrape_official_qualifying(SEASON, active_meta)
+
+    # Fill missing qualifying fields by car number when Jolpica is partial.
+    api_numbers = {
+        num_key(info.get('number', '')): driver_id
+        for driver_id, info in qual_map.items()
+        if info.get('number')
+    }
+
+    for number, official in official_qualifying_map.items():
+        driver_id = api_numbers.get(number)
+        if driver_id:
+            api_info = qual_map[driver_id]
+            for field in ('qualy', 'q1', 'q2', 'q3'):
+                if not api_info.get(field):
+                    api_info[field] = official.get(field, '')
+        else:
+            # Synthetic ID allows official F1 data to populate output when
+            # Jolpica has not published qualifying data for this round.
+            driver_id = f"official_{number}"
+            qual_map[driver_id] = {
+                field: official.get(field, '')
+                for field in ('qualy', 'q1', 'q2', 'q3', 'number')
+            }
+
+    # 4. Fetch race classification. An empty response is normal before the race.
     race_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/results.json')
-    race_results = race_data.get('RaceTable', {}).get('Races', [{}])[0].get('Results', [])
+    race_races = race_data.get('RaceTable', {}).get('Races', [])
+    race_results = race_races[0].get('Results', []) if race_races else []
+
+    if race_results:
+        logging.info("Received %d race-classification records from Jolpica.", len(race_results))
+    else:
+        logging.info("No Jolpica race classification published yet for round %s.", active_round)
+
     race_map = {}
     for res in race_results:
         d_id = res.get('Driver', {}).get('driverId', '')
@@ -506,6 +651,18 @@ def main():
             'constructorId': c.get('constructorId', ''),
             'constructorName': get_std_team(c.get('name', ''))
         }
+
+    # Add driver/team details for qualifying records sourced only from F1.com.
+    for d_id, q_info in qual_map.items():
+        if d_id.startswith("official_") and d_id not in driver_metadata:
+            official = official_qualifying_map.get(num_key(q_info.get("number", "")), {})
+            driver_metadata[d_id] = {
+                'driverName': official.get('driverName', d_id),
+                'driverId': d_id,
+                'code': official.get('code', ''),
+                'constructorId': '',
+                'constructorName': official.get('constructorName', ''),
+            }
 
     combined_drivers = []
     for d_id in all_driver_ids:
