@@ -1,3 +1,4 @@
+
 import json
 import re
 import unicodedata
@@ -8,10 +9,9 @@ import requests
 from bs4 import BeautifulSoup
 
 
-DRIVERS_URL = "https://www.formula1.com/en/drivers"
+F1_URL = "https://www.formula1.com/en/drivers"
 API_URL = "https://api.jolpi.ca/ergast/f1/2026/drivers.json?limit=100"
 
-BASE_URL = "https://www.formula1.com"
 OUTPUT_FILE = Path("drivers.json")
 
 HEADERS = {
@@ -22,102 +22,28 @@ HEADERS = {
     )
 }
 
+TEAMS = [
+    "Red Bull Racing",
+    "Haas F1 Team",
+    "Aston Martin",
+    "Racing Bulls",
+    "Mercedes",
+    "Ferrari",
+    "McLaren",
+    "Alpine",
+    "Audi",
+    "Williams",
+    "Cadillac",
+]
 
-def normalize_name(value):
+
+def normalize(value):
     value = unicodedata.normalize("NFKD", value)
     value = "".join(
         char for char in value
         if not unicodedata.combining(char)
     )
-    return re.sub(r"\s+", " ", value).strip().lower()
-
-
-def get_page(session, url):
-    response = session.get(
-        url,
-        headers=HEADERS,
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.text
-
-
-def fetch_api_drivers(session):
-    print("Fetching driver data from Jolpica API...")
-
-    response = session.get(
-        API_URL,
-        headers=HEADERS,
-        timeout=30,
-    )
-    response.raise_for_status()
-
-    data = response.json()
-
-    api_drivers = data["MRData"]["DriverTable"]["Drivers"]
-
-    drivers = {}
-
-    for driver in api_drivers:
-        name = (
-            f"{driver['givenName']} "
-            f"{driver['familyName']}"
-        )
-
-        key = normalize_name(name)
-
-        drivers[key] = {
-            "name": name,
-            "code": driver.get("code"),
-        }
-
-    print(f"  Found {len(drivers)} API drivers")
-
-    return drivers
-
-
-def format_f1_image_url(url):
-    if not url or "media.formula1.com" not in url:
-        return url
-
-    # Find the image asset, skipping any existing transformations.
-    match = re.search(
-        r"/image/upload(?:,[^/]*)?/(.*)$",
-        url,
-    )
-
-    if not match:
-        return url
-
-    asset_path = match.group(1)
-
-    # Remove existing transformation segments.
-    parts = asset_path.split("/")
-    asset_index = next(
-        (
-            i for i, part in enumerate(parts)
-            if part.startswith("d_common:")
-        ),
-        None,
-    )
-
-    if asset_index is not None:
-        asset_path = "/".join(parts[asset_index:])
-
-    # Keep the fallback asset, version, and driver image path.
-    # Change only the final image extension to JPG.
-    asset_path = re.sub(
-        r"\.(?:webp|png|jpeg)(?=($|\?))",
-        ".jpg",
-        asset_path,
-        flags=re.IGNORECASE,
-    )
-
-    return (
-        "https://media.formula1.com/image/upload/"
-        "f_jpg/c_lfill,w_64,h_64,g_north/q_100/"
-        + asset_path
-    )
+    return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
 def get_image_url(link):
@@ -143,93 +69,84 @@ def get_image_url(link):
     if not url:
         return None
 
-    return format_f1_image_url(
-        urljoin(BASE_URL, url)
+    url = urljoin("https://www.formula1.com", url)
+
+    if "media.formula1.com/image/upload/" not in url:
+        return url
+
+    # Preserve the original asset path and version.
+    asset = url.split("/image/upload/", 1)[1]
+
+    asset_parts = asset.split("/")
+    asset_index = next(
+        (
+            i for i, part in enumerate(asset_parts)
+            if part.startswith("d_common:")
+        ),
+        None,
+    )
+
+    if asset_index is not None:
+        asset = "/".join(asset_parts[asset_index:])
+
+    # Force JPG output with the desired crop and dimensions.
+    asset = re.sub(
+        r"\.(webp|png|jpeg)(?=($|\?))",
+        ".jpg",
+        asset,
+        flags=re.IGNORECASE,
+    )
+
+    return (
+        "https://media.formula1.com/image/upload/"
+        "f_jpg/c_lfill,w_64,h_64,g_north/q_100/"
+        + asset
     )
 
 
-def scrape_permanent_number(session, profile_url):
-    html = get_page(session, profile_url)
-    soup = BeautifulSoup(html, "html.parser")
+def fetch_api_drivers(session):
+    print("Fetching Jolpica driver data...")
 
-    # Check embedded page data first.
-    for script in soup.find_all("script"):
-        content = script.string or script.get_text()
+    response = session.get(
+        API_URL,
+        headers=HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
 
-        if not content:
-            continue
+    data = response.json()
 
-        content = content.strip()
+    drivers = data["MRData"]["DriverTable"]["Drivers"]
 
-        if not content.startswith(("{", "[")):
-            continue
+    # Index API records by normalized family name.
+    indexed = {}
 
-        try:
-            data = json.loads(content)
-        except (json.JSONDecodeError, TypeError):
-            continue
+    for driver in drivers:
+        key = normalize(driver["familyName"])
 
-        number = find_permanent_number(data)
+        if key in indexed:
+            raise RuntimeError(
+                f"Duplicate API surname: {driver['familyName']}"
+            )
 
-        if number is not None:
-            return number
+        indexed[key] = driver
 
-    # Fallback to visible profile text.
-    page_text = soup.get_text(" ", strip=True)
+    print(f"  Retrieved {len(drivers)} API records")
 
-    patterns = [
-        r"Permanent Number\s*#?\s*(\d{1,2})\b",
-        r"Driver Number\s*#?\s*(\d{1,2})\b",
-    ]
-
-    for pattern in patterns:
-        match = re.search(
-            pattern,
-            page_text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-            return int(match.group(1))
-
-    return None
-
-
-def find_permanent_number(data):
-    number_keys = {
-        "permanentnumber",
-        "permanent_number",
-        "drivernumber",
-        "driver_number",
-    }
-
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if key.lower() in number_keys:
-                if str(value).isdigit():
-                    return int(value)
-
-        for value in data.values():
-            result = find_permanent_number(value)
-
-            if result is not None:
-                return result
-
-    elif isinstance(data, list):
-        for value in data:
-            result = find_permanent_number(value)
-
-            if result is not None:
-                return result
-
-    return None
+    return indexed
 
 
 def scrape_f1_drivers(session):
     print("Scraping Formula1.com driver directory...")
 
-    html = get_page(session, DRIVERS_URL)
-    soup = BeautifulSoup(html, "html.parser")
+    response = session.get(
+        F1_URL,
+        headers=HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "html.parser")
 
     drivers = []
     seen = set()
@@ -247,126 +164,87 @@ def scrape_f1_drivers(session):
 
         slug = match.group(1)
 
-        if slug in ("", "all"):
+        if slug in seen:
             continue
 
-        image = get_image_url(link)
+        image_url = get_image_url(link)
 
-        if not image:
+        if not image_url:
             continue
 
-        # Use the profile slug to identify the API record.
-        page_name = slug.replace("-", " ")
-
-        image_tag = link.find("img")
-
-        if image_tag and image_tag.get("alt"):
-            alt = image_tag["alt"].strip()
-
-            if len(alt.split()) >= 2:
-                page_name = alt
-
-        page_name = re.sub(
-            r"\s+",
-            " ",
-            page_name,
-        ).strip()
-
-        key = normalize_name(page_name)
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        # Extract constructor from the driver card.
         card_text = re.sub(
             r"\s+",
             " ",
             link.get_text(" ", strip=True),
         ).strip()
 
-        name_position = card_text.lower().find(
-            page_name.lower()
-        )
-
+        # Identify and remove the constructor suffix.
         constructor = None
 
-        if name_position >= 0:
-            constructor = card_text[
-                name_position + len(page_name):
-            ].strip()
+        for team in TEAMS:
+            if card_text.lower().endswith(team.lower()):
+                constructor = team
+                proper_name = card_text[:-len(team)].strip()
+                break
+        else:
+            print(f"  Skipping unrecognized team: {card_text}")
+            continue
 
-        if constructor:
-            constructor = re.sub(
-                r"\s+Flag of\s+.*$",
-                "",
-                constructor,
-                flags=re.IGNORECASE,
-            ).strip()
+        if not proper_name:
+            continue
 
-        profile_url = urljoin(BASE_URL, href)
-
-        print(f"  Found {page_name} ({constructor})")
+        surname = normalize(proper_name.split()[-1])
 
         drivers.append({
-            "pageName": page_name,
-            "profileUrl": profile_url,
+            "properName": proper_name,
+            "surname": surname,
             "constructor": constructor,
-            "image": image,
+            "image_url": image_url,
+            "slug": slug,
         })
+
+        seen.add(slug)
+
+        print(f"  Found {proper_name} - {constructor}")
 
     return drivers
 
 
 def main():
     with requests.Session() as session:
-        api_drivers = fetch_api_drivers(session)
 
+        api_drivers = fetch_api_drivers(session)
         f1_drivers = scrape_f1_drivers(session)
 
         output = []
         unmatched = []
 
-        for driver in f1_drivers:
-            key = normalize_name(driver["pageName"])
-
-            api_driver = api_drivers.get(key)
+        for scraped in f1_drivers:
+            api_driver = api_drivers.get(scraped["surname"])
 
             if not api_driver:
-                unmatched.append(driver["pageName"])
+                unmatched.append(scraped["properName"])
                 continue
 
-            code = api_driver["code"]
-
-            if not code:
-                unmatched.append(
-                    f"{api_driver['name']} (missing API code)"
-                )
-                continue
-
-            permanent_number = scrape_permanent_number(
-                session,
-                driver["profileUrl"],
+            full_name = (
+                f"{api_driver['givenName']} "
+                f"{api_driver['familyName']}"
             )
 
-            if permanent_number is None:
-                raise RuntimeError(
-                    "Could not find permanent number for "
-                    f"{api_driver['name']}"
-                )
-
             output.append({
-                "name": api_driver["name"],
-                "code": code,
-                "permanentNumber": permanent_number,
-                "constructor": driver["constructor"],
-                "image": driver["image"],
+                "properName": scraped["properName"],
+                "code": api_driver.get("code"),
+                "fullName": full_name,
+                "dateOfBirth": api_driver.get("dateOfBirth"),
+                "driverId": api_driver.get("driverId"),
+                "permanentNumber": api_driver.get("permanentNumber"),
+                "nationality": api_driver.get("nationality"),
+                "image_url": scraped["image_url"],
             })
 
         if unmatched:
             raise RuntimeError(
-                "Could not match all drivers to complete API data:\n"
+                "Could not match these F1 drivers to the API:\n"
                 + "\n".join(f"  - {name}" for name in unmatched)
                 + "\ndrivers.json was not changed."
             )
