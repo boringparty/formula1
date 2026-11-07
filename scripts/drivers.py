@@ -36,7 +36,7 @@ HEADERS = {
     )
 }
 
-IMAGE_TRANSFORMS = "f_jpg/c_lfill,w_64,h_64,g_north/q_100"
+IMAGE_TRANSFORMS = "c_lfill,w_64,h_64,g_north/q_100"
 IMAGE_FALLBACK = (
     "d_common:f1:2026:fallback:driver:"
     "2026fallbackdriverright.webp"
@@ -111,10 +111,10 @@ def get_image_url(image) -> str | None:
 
 def format_f1_image_url(image_url: str) -> str:
     """
-    Apply the standard F1 driver portrait crop and sizing.
+    Apply F1 CDN transformations and request a JPG output.
 
-    Preserves the original versioned asset path while replacing
-    any existing CDN transformations.
+    Preserves the original versioned asset path, replaces existing
+    transformations, and changes the asset extension to .jpg.
     """
 
     parsed = urlsplit(image_url)
@@ -129,8 +129,7 @@ def format_f1_image_url(image_url: str) -> str:
 
     asset_path = parsed.path.split(marker, 1)[1]
 
-    # Find the version segment, e.g. v1740000001.
-    # Everything from this point onward is the original asset path.
+    # Find the original version segment, e.g. v1740000001.
     version_match = re.search(r"(?:^|/)(v\d+/)", asset_path)
 
     if not version_match:
@@ -138,9 +137,17 @@ def format_f1_image_url(image_url: str) -> str:
 
     asset_path = asset_path[version_match.start():].lstrip("/")
 
+    # Change the requested output extension.
+    asset_path = re.sub(
+        r"\.(webp|png|avif)$",
+        ".jpg",
+        asset_path,
+        flags=re.IGNORECASE,
+    )
+
     return (
         f"https://media.formula1.com/image/upload/"
-        f"{IMAGE_TRANSFORMS}/"
+        f"f_jpg/{IMAGE_TRANSFORMS}/"
         f"{IMAGE_FALLBACK}/"
         f"{asset_path}"
     )
@@ -149,11 +156,7 @@ def format_f1_image_url(image_url: str) -> str:
 # Formula1.com image scraper ------------------------------------------------
 
 def scrape_f1_driver_images(session: requests.Session) -> dict:
-    """
-    Scrape driver image URLs from the official F1 drivers page.
-
-    Returns a dictionary keyed by normalized driver name.
-    """
+    """Scrape driver image URLs from the official F1 drivers page."""
 
     response = session.get(F1_DRIVERS_URL, timeout=TIMEOUT)
     response.raise_for_status()
@@ -166,10 +169,8 @@ def scrape_f1_driver_images(session: requests.Session) -> dict:
     for link in driver_links:
         href = link.get("href", "")
 
-        # Prefer an image inside the driver link.
         image = link.find("img")
 
-        # Some layouts place the image alongside the link.
         if not image and link.parent:
             image = link.parent.find("img")
 
@@ -183,17 +184,16 @@ def scrape_f1_driver_images(session: requests.Session) -> dict:
 
         image_url = urljoin(F1_DRIVERS_URL, image_url)
 
-        # Only accept Formula1.com CDN images.
         if "media.formula1.com" not in urlsplit(image_url).netloc:
             continue
 
-        # Use the profile URL slug as the primary name source.
+        # Derive the driver name from the profile URL.
         # Example: /en/drivers/fernando-alonso
         slug = href.rstrip("/").split("/")[-1]
         slug = re.sub(r"\.html$", "", slug)
         driver_name = slug.replace("-", " ")
 
-        # Prefer useful image alt text when it identifies the driver.
+        # Prefer useful image alt text when available.
         alt = image.get("alt", "").strip()
 
         if alt and len(normalize_name(alt).split()) >= 2:
@@ -204,10 +204,7 @@ def scrape_f1_driver_images(session: requests.Session) -> dict:
         if normalized:
             images[normalized] = image_url
 
-    print(
-        f"Scraped {len(images)} driver image URLs "
-        f"from Formula1.com"
-    )
+    print(f"Scraped {len(images)} driver image URLs from Formula1.com")
 
     return images
 
@@ -221,11 +218,10 @@ def match_driver_image(
 
     normalized = normalize_name(full_name)
 
-    # Exact full-name match.
     if normalized in scraped_images:
         return scraped_images[normalized]
 
-    # Fallback to surname only when it is unique in the API roster.
+    # Only use surname matching when the surname is unique.
     surname = normalized.split()[-1] if normalized else ""
 
     if surname in unique_surnames:
@@ -242,7 +238,6 @@ def main():
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    # Load the existing cumulative directory.
     existing_drivers = load_existing_drivers()
 
     # Fetch driver information from Jolpica.
@@ -275,7 +270,7 @@ def main():
         print("Existing image URLs will be preserved.")
         scraped_images = {}
 
-    # Identify surnames that are unique in the current API roster.
+    # Identify surnames unique in the API roster.
     surnames = [
         normalize_name(
             f"{driver.get('givenName', '')} "
@@ -308,7 +303,6 @@ def main():
 
         entry_key = code or full_name
 
-        # Match the driver's image from the scraped F1 page.
         image_url = match_driver_image(
             full_name,
             scraped_images,
@@ -333,7 +327,7 @@ def main():
                 "nationality": driver.get("nationality"),
             })
 
-        # Apply the F1 CDN transformations to the scraped image.
+        # Apply the CDN transformations and JPG output.
         if image_url:
             try:
                 existing_drivers[entry_key]["image_url"] = (
