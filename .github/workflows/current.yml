@@ -1,3 +1,4 @@
+
 name: F1 Current Session Data
 
 on:
@@ -21,6 +22,7 @@ concurrency:
 jobs:
   update-current:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,24 +35,106 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4 gspread google-auth
 
+      # Save existing data for comparison
+      - name: Save previous data
+        run: |
+          if [ -f current.json ]; then
+            cp current.json /tmp/current-before.json
+          else
+            echo '{}' > /tmp/current-before.json
+          fi
+
       - name: Build current session data
         env:
           F1_ROUND_OFFSET: ${{ github.event.inputs.round_offset || '0' }}
         run: python scripts/current.py
+
+      # Compare JSON while ignoring updated_at_utc
+      - name: Check for new data
+        id: compare
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          def load(path):
+              try:
+                  with open(path, encoding="utf-8") as f:
+                      data = json.load(f)
+                  data.pop("updated_at_utc", None)
+                  return data
+              except (FileNotFoundError, json.JSONDecodeError):
+                  return None
+
+          previous = load("/tmp/current-before.json")
+          current = load("current.json")
+
+          changed = previous != current
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"changed={'true' if changed else 'false'}\n")
+
+          print("New data detected." if changed else "No new data.")
+          PY
 
       - name: Push data to Google Sheets
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python scripts/push_to_sheets.py
 
+      # Commit only when actual data changes
       - name: Commit current.json changes
+        if: steps.compare.outputs.changed == 'true'
         run: |
-          if [ -z "$(git status --porcelain current.json)" ]; then
-            echo "No changes to current.json."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add current.json
           git commit -m "Update current session data [skip ci]"
           git push
+
+      # Successful run notification
+      - name: Pushover notification
+        if: success()
+        env:
+          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+          PUSHOVER_API_TOKEN: ${{ secrets.PUSHOVER_API_TOKEN }}
+          DATA_CHANGED: ${{ steps.compare.outputs.changed }}
+        run: |
+          if [ -z "$PUSHOVER_USER_KEY" ] || [ -z "$PUSHOVER_API_TOKEN" ]; then
+            echo "Pushover credentials missing."
+            exit 0
+          fi
+
+          if [ "$DATA_CHANGED" = "true" ]; then
+            MESSAGE="New F1 data posted successfully."
+          else
+            MESSAGE="No new F1 data. Everything is up to date."
+          fi
+
+          curl -sS --fail \
+            --form-string "token=$PUSHOVER_API_TOKEN" \
+            --form-string "user=$PUSHOVER_USER_KEY" \
+            --form-string "title=F1 Current Session" \
+            --form-string "message=$MESSAGE" \
+            https://api.pushover.net/1/messages.json \
+            || echo "WARNING: Pushover notification failed."
+
+      # Failure notification
+      - name: Pushover error notification
+        if: failure()
+        env:
+          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+          PUSHOVER_API_TOKEN: ${{ secrets.PUSHOVER_API_TOKEN }}
+        run: |
+          if [ -z "$PUSHOVER_USER_KEY" ] || [ -z "$PUSHOVER_API_TOKEN" ]; then
+            echo "Pushover credentials missing."
+            exit 0
+          fi
+
+          curl -sS --fail \
+            --form-string "token=$PUSHOVER_API_TOKEN" \
+            --form-string "user=$PUSHOVER_USER_KEY" \
+            --form-string "title=F1 Update Failed" \
+            --form-string "message=The current session data workflow encountered an error. Check GitHub Actions logs." \
+            https://api.pushover.net/1/messages.json \
+            || echo "WARNING: Pushover error notification failed."
