@@ -116,6 +116,7 @@ jobs:
             --form-string "user=$PUSHOVER_USER_KEY" \
             --form-string "title=F1 Current Session" \
             --form-string "message=$MESSAGE" \
+            --form-string "priority=1" \
             https://api.pushover.net/1/messages.json \
             || echo "WARNING: Pushover notification failed."
 
@@ -135,6 +136,7 @@ jobs:
             --form-string "token=$PUSHOVER_API_TOKEN" \
             --form-string "user=$PUSHOVER_USER_KEY" \
             --form-string "title=F1 Update Failed" \
+            --form-string "priority=1" \
             --form-string "message=The current session data workflow encountered an error. Check GitHub Actions logs." \
             https://api.pushover.net/1/messages.json \
             || echo "WARNING: Pushover error notification failed."
