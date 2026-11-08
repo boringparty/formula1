@@ -4,7 +4,7 @@
   "race_name": "Brazilian Grand Prix",
   "date": "2026-11-08",
   "time": "17:00:00Z",
-  "updated_at_utc": "2026-11-08T19:21:22.270932+00:00",
+  "updated_at_utc": "2026-11-08T23:51:18.659803+00:00",
   "drivers": [
     {
       "driverName": "Lando Norris",
@@ -121,25 +121,6 @@
       "fastestLap": "00:01:13.018"
     },
     {
-      "driverName": "Charles Leclerc",
-      "driverId": "leclerc",
-      "code": "LEC",
-      "constructorId": "ferrari",
-      "constructorName": "Ferrari",
-      "no": "16",
-      "grid": "14",
-      "qualy": "4",
-      "q1": "1:32.121",
-      "q2": "1:28.082",
-      "q3": "1:28.289",
-      "pos": "7",
-      "race": "7",
-      "laps": "71",
-      "pts": "6",
-      "status": "Finished",
-      "fastestLap": "00:01:14.170"
-    },
-    {
       "driverName": "Liam Lawson",
       "driverId": "lawson",
       "code": "LAW",
@@ -151,12 +132,31 @@
       "q1": "1:32.085",
       "q2": "1:27.049",
       "q3": "1:28.321",
+      "pos": "7",
+      "race": "7",
+      "laps": "71",
+      "pts": "6",
+      "status": "Finished",
+      "fastestLap": "00:01:13.495"
+    },
+    {
+      "driverName": "Charles Leclerc",
+      "driverId": "leclerc",
+      "code": "LEC",
+      "constructorId": "ferrari",
+      "constructorName": "Ferrari",
+      "no": "16",
+      "grid": "14",
+      "qualy": "4",
+      "q1": "1:32.121",
+      "q2": "1:28.082",
+      "q3": "1:28.289",
       "pos": "8",
       "race": "8",
       "laps": "71",
       "pts": "4",
       "status": "Finished",
-      "fastestLap": "00:01:13.495"
+      "fastestLap": "00:01:14.170"
     },
     {
       "driverName": "Lewis Hamilton",
