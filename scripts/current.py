@@ -44,62 +44,6 @@ HEADERS = {
     'Referer': 'https://www.formula1.com/',
 }
 
-def send_pushover_notification(title: str, message: str) -> bool:
-    """Send a Pushover notification when credentials are configured."""
-    user_key = os.getenv('PUSHOVER_USER_KEY', '').strip()
-    api_token = os.getenv('PUSHOVER_API_TOKEN', '').strip()
-
-    if not user_key or not api_token:
-        logging.warning(
-            'Pushover notification skipped: PUSHOVER_USER_KEY and/or '
-            'PUSHOVER_API_TOKEN is not configured.'
-        )
-        return False
-
-    try:
-        response = requests.post(
-            'https://api.pushover.net/1/messages.json',
-            data={
-                'token': api_token,
-                'user': user_key,
-                'title': title,
-                'message': message[:1024],
-            },
-            timeout=TIMEOUT,
-        )
-        response.raise_for_status()
-        result = response.json()
-        if result.get('status') != 1:
-            raise RuntimeError(f"Pushover rejected the notification: {result}")
-        logging.info('Pushover notification sent: %s', title)
-        return True
-    except Exception as exc:
-        # A notification failure should not undo a successful data update.
-        logging.warning('Could not send Pushover notification: %s', exc)
-        return False
-
-
-def load_previous_payload(path: Path) -> dict | None:
-    """Load the prior JSON payload, if one exists and is valid."""
-    if not path.is_file():
-        return None
-    try:
-        return json.loads(path.read_text(encoding='utf-8'))
-    except (OSError, json.JSONDecodeError) as exc:
-        logging.warning('Could not read previous JSON for comparison: %s', exc)
-        return None
-
-
-def payloads_differ(previous: dict | None, current: dict) -> bool:
-    """Compare payload data while ignoring the per-run timestamp."""
-    if previous is None:
-        return True
-
-    previous_data = {k: v for k, v in previous.items() if k != 'updated_at_utc'}
-    current_data = {k: v for k, v in current.items() if k != 'updated_at_utc'}
-    return previous_data != current_data
-
-
 def clean(s): return re.sub(r'\s+', ' ', str(s or '')).strip()
 def norm(s): return re.sub(r'[^a-z0-9]+', '', clean(s).lower()).strip()
 def get_std_name(d_id, raw): return DRIVER_NAME_MAP.get(d_id, clean(raw))
@@ -573,7 +517,6 @@ def pick_active_race(races: list[dict], now: datetime) -> tuple[dict, datetime |
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-    previous_payload = load_previous_payload(CURRENT_OUTPUT)
     now = datetime.now(timezone.utc)
 
     sched = fetch_json(f'{JOLPICA}/{SEASON}.json')
@@ -774,38 +717,11 @@ def main():
         'drivers': combined_drivers
     }
 
-    has_new_data = payloads_differ(previous_payload, payload)
-
     CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    CURRENT_OUTPUT.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + '\n',
-        encoding='utf-8',
-    )
-    logging.info(
-        'Generated %s (%d drivers, %d with race positions).',
-        CURRENT_OUTPUT, len(combined_drivers),
-        sum(1 for d in combined_drivers if d['pos']),
-    )
-
-    if has_new_data:
-        send_pushover_notification(
-            'F1 — New data posted',
-            f"{race_name} (Round {active_round}): new data was generated and current.json was updated.",
-        )
-    else:
-        send_pushover_notification(
-            'F1 — No new data',
-            f"{race_name} (Round {active_round}): the scraper ran successfully, but the data has not changed.",
-        )
-
+    CURRENT_OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    logging.info('Generated %s (%d drivers, %d with race positions).',
+                 CURRENT_OUTPUT, len(combined_drivers),
+                 sum(1 for d in combined_drivers if d['pos']))
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception as exc:
-        logging.exception('F1 data update failed.')
-        send_pushover_notification(
-            'F1 — Update failed',
-            f"The data scraper failed: {str(exc)[:900]}",
-        )
-        raise
+    main()
