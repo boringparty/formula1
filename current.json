@@ -4,7 +4,7 @@
   "race_name": "Brazilian Grand Prix",
   "date": "2026-11-08",
   "time": "17:00:00Z",
-  "updated_at_utc": "2026-11-08T19:05:20.213570+00:00",
+  "updated_at_utc": "2026-11-08T19:21:22.270932+00:00",
   "drivers": [
     {
       "driverName": "Lando Norris",
@@ -23,7 +23,7 @@
       "laps": "71",
       "pts": "25",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:12.983"
     },
     {
       "driverName": "Max Verstappen",
@@ -42,7 +42,7 @@
       "laps": "71",
       "pts": "18",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:13.131"
     },
     {
       "driverName": "Isack Hadjar",
@@ -61,7 +61,7 @@
       "laps": "71",
       "pts": "15",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:12.877"
     },
     {
       "driverName": "George Russell",
@@ -80,7 +80,7 @@
       "laps": "71",
       "pts": "12",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.040"
     },
     {
       "driverName": "Kimi Antonelli",
@@ -99,7 +99,7 @@
       "laps": "71",
       "pts": "10",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:12.689"
     },
     {
       "driverName": "Oscar Piastri",
@@ -118,7 +118,7 @@
       "laps": "71",
       "pts": "8",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:13.018"
     },
     {
       "driverName": "Charles Leclerc",
@@ -137,7 +137,7 @@
       "laps": "71",
       "pts": "6",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.170"
     },
     {
       "driverName": "Liam Lawson",
@@ -156,7 +156,7 @@
       "laps": "71",
       "pts": "4",
       "status": "Finished",
-      "fastestLap": ""
+      "fastestLap": "00:01:13.495"
     },
     {
       "driverName": "Lewis Hamilton",
@@ -175,7 +175,7 @@
       "laps": "70",
       "pts": "2",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:13.724"
     },
     {
       "driverName": "Nico Hulkenberg",
@@ -194,7 +194,7 @@
       "laps": "70",
       "pts": "1",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.000"
     },
     {
       "driverName": "Arvid Lindblad",
@@ -213,7 +213,7 @@
       "laps": "70",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.004"
     },
     {
       "driverName": "Fernando Alonso",
@@ -232,7 +232,7 @@
       "laps": "70",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.706"
     },
     {
       "driverName": "Franco Colapinto",
@@ -251,7 +251,7 @@
       "laps": "70",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:13.710"
     },
     {
       "driverName": "Pierre Gasly",
@@ -270,7 +270,7 @@
       "laps": "70",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.462"
     },
     {
       "driverName": "Alexander Albon",
@@ -289,7 +289,7 @@
       "laps": "70",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.464"
     },
     {
       "driverName": "Gabriel Bortoleto",
@@ -308,7 +308,7 @@
       "laps": "70",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.940"
     },
     {
       "driverName": "Oliver Bearman",
@@ -327,7 +327,7 @@
       "laps": "70",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.036"
     },
     {
       "driverName": "Sergio Perez",
@@ -346,7 +346,7 @@
       "laps": "69",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:16.123"
     },
     {
       "driverName": "Carlos Sainz",
@@ -365,7 +365,7 @@
       "laps": "69",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.613"
     },
     {
       "driverName": "Rafael Camara",
@@ -384,7 +384,7 @@
       "laps": "69",
       "pts": "0",
       "status": "Lapped",
-      "fastestLap": ""
+      "fastestLap": "00:01:14.369"
     },
     {
       "driverName": "Lance Stroll",
@@ -403,7 +403,7 @@
       "laps": "30",
       "pts": "0",
       "status": "Retired",
-      "fastestLap": ""
+      "fastestLap": "00:01:17.430"
     },
     {
       "driverName": "Valtteri Bottas",
