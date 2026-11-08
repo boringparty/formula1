@@ -35,8 +35,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4 gspread google-auth
 
-      # Save existing data for comparison
-      - name: Save previous data
+      # Preserve the previous JSON before scraping.
+      - name: Save previous current.json
         run: |
           if [ -f current.json ]; then
             cp current.json /tmp/current-before.json
@@ -49,40 +49,35 @@ jobs:
           F1_ROUND_OFFSET: ${{ github.event.inputs.round_offset || '0' }}
         run: python scripts/current.py
 
-      # Compare JSON while ignoring updated_at_utc
-      - name: Check for new data
+      # Compare actual data, ignoring the changing timestamp.
+      - name: Check for data changes
         id: compare
         run: |
           python - <<'PY'
           import json
           import os
+          from pathlib import Path
 
-          def load(path):
-              try:
-                  with open(path, encoding="utf-8") as f:
-                      data = json.load(f)
-                  data.pop("updated_at_utc", None)
-                  return data
-              except (FileNotFoundError, json.JSONDecodeError):
-                  return None
+          old = json.loads(Path("/tmp/current-before.json").read_text())
+          new = json.loads(Path("current.json").read_text())
 
-          previous = load("/tmp/current-before.json")
-          current = load("current.json")
+          old.pop("updated_at_utc", None)
+          new.pop("updated_at_utc", None)
 
-          changed = previous != current
+          changed = old != new
 
+          print(f"Data changed: {changed}")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"changed={'true' if changed else 'false'}\n")
-
-          print("New data detected." if changed else "No new data.")
           PY
 
+      # Always push to Sheets, even when JSON is unchanged.
       - name: Push data to Google Sheets
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python scripts/push_to_sheets.py
 
-      # Commit only when actual data changes
+      # Only commit when meaningful data has changed.
       - name: Commit current.json changes
         if: steps.compare.outputs.changed == 'true'
         run: |
@@ -92,51 +87,23 @@ jobs:
           git commit -m "Update current session data [skip ci]"
           git push
 
-      # Successful run notification
-      - name: Pushover notification
-        if: success()
+      # Only notify when changed data has been pushed successfully.
+      - name: Notify Pushover - Data Updated
+        if: success() && steps.compare.outputs.changed == 'true'
         env:
           PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
           PUSHOVER_API_TOKEN: ${{ secrets.PUSHOVER_API_TOKEN }}
-          DATA_CHANGED: ${{ steps.compare.outputs.changed }}
         run: |
           if [ -z "$PUSHOVER_USER_KEY" ] || [ -z "$PUSHOVER_API_TOKEN" ]; then
-            echo "Pushover credentials missing."
+            echo "Pushover secrets missing. Skipping notification."
             exit 0
-          fi
-
-          if [ "$DATA_CHANGED" = "true" ]; then
-            MESSAGE="New F1 data posted successfully."
-          else
-            MESSAGE="No new F1 data. Everything is up to date."
           fi
 
           curl -sS --fail \
             --form-string "token=$PUSHOVER_API_TOKEN" \
             --form-string "user=$PUSHOVER_USER_KEY" \
             --form-string "title=F1 Current Session" \
-            --form-string "message=$MESSAGE" \
+            --form-string "message=New F1 data posted successfully." \
             --form-string "priority=1" \
             https://api.pushover.net/1/messages.json \
-            || echo "WARNING: Pushover notification failed."
-
-      # Failure notification
-      - name: Pushover error notification
-        if: failure()
-        env:
-          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
-          PUSHOVER_API_TOKEN: ${{ secrets.PUSHOVER_API_TOKEN }}
-        run: |
-          if [ -z "$PUSHOVER_USER_KEY" ] || [ -z "$PUSHOVER_API_TOKEN" ]; then
-            echo "Pushover credentials missing."
-            exit 0
-          fi
-
-          curl -sS --fail \
-            --form-string "token=$PUSHOVER_API_TOKEN" \
-            --form-string "user=$PUSHOVER_USER_KEY" \
-            --form-string "title=F1 Update Failed" \
-            --form-string "priority=1" \
-            --form-string "message=The current session data workflow encountered an error. Check GitHub Actions logs." \
-            https://api.pushover.net/1/messages.json \
-            || echo "WARNING: Pushover error notification failed."
+            || echo "Pushover notification failed. Continuing."
