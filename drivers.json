@@ -157,12 +157,12 @@
   },
   {
     "properName": "Rafael Câmara",
-    "code": null,
+    "code": "CAM",
     "fullName": "Rafael Camara",
-    "dateOfBirth": null,
+    "dateOfBirth": "2005-05-05",
     "driverId": "rafael_camara",
-    "permanentNumber": null,
-    "nationality": null,
+    "permanentNumber": "51",
+    "nationality": "Brazilian",
     "constructor": "Haas",
     "constructorId": "haas",
     "image_url": "https://media.formula1.com/image/upload/f_jpg/c_lfill,w_64,h_64,g_north/q_100/d_common:f1:2026:fallback:driver:2026fallbackdriverright.webp/v1740000001/common/f1/2026/haasf1team/rafcam01/2026haasf1teamrafcam01right.jpg"
