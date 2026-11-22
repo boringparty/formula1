@@ -277,6 +277,86 @@ def scrape_official_fastest_laps(
     return fastest_laps
 
 
+def scrape_official_race_details(season: int, meta: dict) -> dict[str, dict]:
+    """Scrape race laps, points and retirement/status details keyed by car number."""
+    race_page = discover_race_page_from_index(season, race_keywords(meta))
+    if not race_page:
+        logging.warning("Could not identify official F1 race page for race details.")
+        return {}
+
+    race_id, slug = race_page
+    url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/{slug}/race-result"
+
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("Could not load official race-results page %s: %s", url, exc)
+        return {}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    table = soup.find("table", id="results-table") or soup.find("table")
+    if not table:
+        logging.warning("No race-results table found at %s", url)
+        return {}
+
+    rows = table.find_all("tr")
+    if not rows:
+        return {}
+
+    headers = [norm(cell.get_text(" ", strip=True))
+               for cell in rows[0].find_all(["th", "td"])]
+
+    def column(*names):
+        return next((i for i, header in enumerate(headers) if header in names), None)
+
+    no_idx = column("no", "number", "num")
+    laps_idx = column("laps")
+    pts_idx = column("pts", "points")
+    time_idx = column("timeretired", "time", "retired")
+
+    if no_idx is None:
+        logging.warning("Race-results table has no car-number column at %s: %s", url, headers)
+        return {}
+
+    details = {}
+    for row in rows[1:]:
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["td", "th"])]
+        if len(cells) <= no_idx:
+            continue
+
+        number = clean(cells[no_idx])
+        if not number.isdigit():
+            continue
+
+        laps = clean(cells[laps_idx]) if laps_idx is not None and len(cells) > laps_idx else ""
+        points = clean(cells[pts_idx]) if pts_idx is not None and len(cells) > pts_idx else ""
+        time_retired = clean(cells[time_idx]) if time_idx is not None and len(cells) > time_idx else ""
+
+        # The official table labels this column "Time/Retired". Convert a
+        # classified race time into the familiar API status "Finished";
+        # preserve retirement descriptions such as "Collision" verbatim.
+        if time_retired and (
+            re.fullmatch(r"\d+:\d{2}:\d{2}\.\d+", time_retired)
+            or re.fullmatch(r"\+\d+(?:\.\d+)?", time_retired)
+            or time_retired.lower() in ("same", "lap")
+        ):
+            status = "Finished"
+        else:
+            status = time_retired
+
+        details[num_key(number)] = {
+            "laps": laps,
+            "pts": points,
+            "status": status,
+            "time_retired": time_retired,
+        }
+
+    logging.info("Scraped race details for %d drivers from official F1 page (%s).",
+                 len(details), url)
+    return details
+
+
 def page_identifies_race(soup: BeautifulSoup, kws: list[str]) -> bool:
     parts = [soup.title.get_text(' ', strip=True) if soup.title else '']
     parts += [h.get_text(' ', strip=True) for h in soup.find_all(['h1', 'h2'])]
@@ -531,6 +611,7 @@ def main():
 
     # 2. Scrape official race results as a robust fallback/supplement to Jolpica API results
     official_race_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'race-result')
+    official_race_details = scrape_official_race_details(SEASON, active_meta)
 
     # 2a. Scrape fastest-lap times from the official Formula 1 results page.
     # The scraper returns an empty mapping until the page/table is published.
@@ -668,9 +749,9 @@ def main():
             'q3': q_info.get('q3', ''),
             'pos': str(pos_val),
             'race': str(pos_val),
-            'laps': r_info.get('laps', ''),
-            'pts': r_info.get('pts', ''),
-            'status': r_info.get('status', ''),
+            'laps': r_info.get('laps') or official_race_details.get(num_key(no), {}).get('laps', ''),
+            'pts': r_info.get('pts') or official_race_details.get(num_key(no), {}).get('pts', ''),
+            'status': r_info.get('status') or official_race_details.get(num_key(no), {}).get('status', ''),
             'fastestLap': fastest_lap_map.get(num_key(no), '')
         })
 
