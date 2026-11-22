@@ -644,7 +644,7 @@ def main():
         logging.info("Official results already collected for this race; nothing to do.")
         return
 
-    # Poll only between 1h45m and 3h20m after the scheduled race start.
+    # Poll only between 1h45m and 3h after the scheduled race start.
     if not force_update:
         race_start = parse_race_start(active_meta)
         if race_start is None:
@@ -654,7 +654,7 @@ def main():
         if elapsed < timedelta(minutes=105):
             logging.info("Too early to check race results (race started at %s UTC).", race_start.isoformat())
             return
-        if elapsed > timedelta(hours=3, minutes=20):
+        if elapsed > timedelta(minutes=200):
             logging.info("Three-hour-twenty-minute result polling window has ended; skipping this race.")
             return
 
