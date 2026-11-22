@@ -53,8 +53,8 @@ Source: [F1.com](https://www.formula1.com/en/results/2026/races/1300/las-vegas/q
 | 11   | 27  | Nico Hulkenberg   | Audi            | 50   | +22.720s       | 0    |
 | 12   | 5   | Gabriel Bortoleto | Audi            | 50   | +28.602s       | 0    |
 | 13   | 87  | Oliver Bearman    | Haas F1 Team    | 50   | +28.843s       | 0    |
-| 14   | 6   | Isack Hadjar      | Red Bull Racing | 50   | +46.488s       | 0    |
-| 15   | 30  | Liam Lawson       | Racing Bulls    | 50   | +36.588s       | 0    |
+| 14   | 30  | Liam Lawson       | Racing Bulls    | 50   | +36.588s       | 0    |
+| 15   | 6   | Isack Hadjar      | Red Bull Racing | 50   | +46.488s       | 0    |
 | 16   | 51  | Rafael Camara     | Haas F1 Team    | 50   | +47.814s       | 0    |
 | 17   | 18  | Lance Stroll      | Aston Martin    | 50   | +68.353s       | 0    |
 | 18   | 77  | Valtteri Bottas   | Cadillac        | 50   | +71.673s       | 0    |
