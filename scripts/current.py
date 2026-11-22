@@ -190,6 +190,79 @@ def scrape_official_qualifying(season: int, meta: dict) -> dict[str, dict]:
     return qualifying
 
 
+def scrape_official_race_details(season: int, meta: dict) -> dict[str, dict]:
+    """Scrape race laps, points and retirement/status details keyed by car number."""
+    race_page = discover_race_page_from_index(season, race_keywords(meta))
+    if not race_page:
+        logging.warning("Could not identify official F1 race page for race details.")
+        return {}
+
+    race_id, slug = race_page
+    url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/{slug}/race-result"
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("Could not load official race-results page %s: %s", url, exc)
+        return {}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    table = soup.find("table", id="results-table") or soup.find("table")
+    if not table:
+        logging.warning("No race-results table found at %s", url)
+        return {}
+    rows = table.find_all("tr")
+    if not rows:
+        return {}
+
+    headers = [norm(cell.get_text(" ", strip=True)) for cell in rows[0].find_all(["th", "td"])]
+
+    def column(*names):
+        return next((i for i, header in enumerate(headers) if header in names), None)
+
+    pos_idx = column("pos", "position")
+    no_idx = column("no", "number", "num")
+    laps_idx = column("laps")
+    pts_idx = column("pts", "points")
+    time_idx = column("timeretired", "time", "retired")
+    if no_idx is None or pos_idx is None:
+        logging.warning("Race-results table is missing position or car-number columns at %s: %s", url, headers)
+        return {}
+
+    details = {}
+    for row in rows[1:]:
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["td", "th"])]
+        if len(cells) <= no_idx:
+            continue
+        number = clean(cells[no_idx])
+        if not number.isdigit():
+            continue
+        position = clean(cells[pos_idx]) if len(cells) > pos_idx else ""
+        if not position:
+            continue
+        laps = clean(cells[laps_idx]) if laps_idx is not None and len(cells) > laps_idx else ""
+        points = clean(cells[pts_idx]) if pts_idx is not None and len(cells) > pts_idx else ""
+        time_retired = clean(cells[time_idx]) if time_idx is not None and len(cells) > time_idx else ""
+        if time_retired and (
+            re.fullmatch(r"\d+:\d{2}:\d{2}\.\d+", time_retired)
+            or re.fullmatch(r"\+\d+(?:\.\d+)?", time_retired)
+            or time_retired.lower() in ("same", "lap")
+        ):
+            status = "Finished"
+        else:
+            status = time_retired
+        details[num_key(number)] = {
+            "pos": position,
+            "laps": laps,
+            "pts": points,
+            "status": status,
+            "time_retired": time_retired,
+        }
+
+    logging.info("Scraped race details for %d drivers from official F1 page (%s).", len(details), url)
+    return details
+
+
 def scrape_official_fastest_laps(
     season: int,
     meta: dict,
@@ -275,92 +348,6 @@ def scrape_official_fastest_laps(
         fastest_url,
     )
     return fastest_laps
-
-
-def scrape_official_race_details(season: int, meta: dict) -> dict[str, dict]:
-    """Scrape race laps, points and retirement/status details keyed by car number."""
-    race_page = discover_race_page_from_index(season, race_keywords(meta))
-    if not race_page:
-        logging.warning("Could not identify official F1 race page for race details.")
-        return {}
-
-    race_id, slug = race_page
-    url = f"https://www.formula1.com/en/results/{season}/races/{race_id}/{slug}/race-result"
-
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        logging.warning("Could not load official race-results page %s: %s", url, exc)
-        return {}
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    table = soup.find("table", id="results-table") or soup.find("table")
-    if not table:
-        logging.warning("No race-results table found at %s", url)
-        return {}
-
-    rows = table.find_all("tr")
-    if not rows:
-        return {}
-
-    headers = [norm(cell.get_text(" ", strip=True))
-               for cell in rows[0].find_all(["th", "td"])]
-
-    def column(*names):
-        return next((i for i, header in enumerate(headers) if header in names), None)
-
-    pos_idx = column("pos", "position")
-    no_idx = column("no", "number", "num")
-    laps_idx = column("laps")
-    pts_idx = column("pts", "points")
-    time_idx = column("timeretired", "time", "retired")
-
-    if no_idx is None or pos_idx is None:
-        logging.warning("Race-results table is missing position or car-number columns at %s: %s", url, headers)
-        return {}
-
-    details = {}
-    for row in rows[1:]:
-        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["td", "th"])]
-        if len(cells) <= no_idx:
-            continue
-
-        number = clean(cells[no_idx])
-        if not number.isdigit():
-            continue
-
-        position = clean(cells[pos_idx]) if len(cells) > pos_idx else ""
-        if not position:
-            continue
-
-        laps = clean(cells[laps_idx]) if laps_idx is not None and len(cells) > laps_idx else ""
-        points = clean(cells[pts_idx]) if pts_idx is not None and len(cells) > pts_idx else ""
-        time_retired = clean(cells[time_idx]) if time_idx is not None and len(cells) > time_idx else ""
-
-        # The official table labels this column "Time/Retired". Convert a
-        # classified race time into the familiar API status "Finished";
-        # preserve retirement descriptions such as "Collision" verbatim.
-        if time_retired and (
-            re.fullmatch(r"\d+:\d{2}:\d{2}\.\d+", time_retired)
-            or re.fullmatch(r"\+\d+(?:\.\d+)?", time_retired)
-            or time_retired.lower() in ("same", "lap")
-        ):
-            status = "Finished"
-        else:
-            status = time_retired
-
-        details[num_key(number)] = {
-            "pos": position,
-            "laps": laps,
-            "pts": points,
-            "status": status,
-            "time_retired": time_retired,
-        }
-
-    logging.info("Scraped race details for %d drivers from official F1 page (%s).",
-                 len(details), url)
-    return details
 
 
 def page_identifies_race(soup: BeautifulSoup, kws: list[str]) -> bool:
@@ -587,17 +574,27 @@ def parse_race_start(meta: dict) -> datetime | None:
         return None
 
 
-def current_json_has_results(season: int, round_no: str) -> bool:
-    """Prevent repeated processing after official results have been collected."""
+def load_existing_payload(season: int, round_no: str) -> dict:
+    """Load current.json only when it belongs to the requested race."""
     try:
         existing = json.loads(CURRENT_OUTPUT.read_text(encoding="utf-8"))
-        return (
-            int(existing.get("season", -1)) == season
-            and str(existing.get("round", "")) == str(round_no)
-            and existing.get("race_results_published") is True
-        )
+        if (int(existing.get("season", -1)) == season
+                and str(existing.get("round", "")) == str(round_no)):
+            return existing
     except (OSError, ValueError, TypeError):
-        return False
+        pass
+    return {}
+
+
+def current_json_has_results(season: int, round_no: str) -> bool:
+    """Prevent repeated race processing after official results are collected."""
+    existing = load_existing_payload(season, round_no)
+    return existing.get("race_results_published") is True
+
+
+def write_payload(payload: dict) -> None:
+    CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    CURRENT_OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def main():
@@ -611,7 +608,6 @@ def main():
         return
 
     active_meta, quali_end = pick_active_race(races, now)
-
     # Optional test override: shift the selected race by a number of rounds.
     # 0 = normal selection, -1 = previous race, +1 = next race.
     if ROUND_OFFSET:
@@ -622,13 +618,9 @@ def main():
         )
         if selected_index is None:
             raise RuntimeError("Could not locate the selected race in the season schedule.")
-
         target_index = selected_index + ROUND_OFFSET
         if not 0 <= target_index < len(races):
-            raise ValueError(
-                f"F1_ROUND_OFFSET={ROUND_OFFSET} moves outside the season schedule."
-            )
-
+            raise ValueError(f"F1_ROUND_OFFSET={ROUND_OFFSET} moves outside the season schedule.")
         active_meta = races[target_index]
         quali_end = None  # The calendar qualifying time belongs to the unshifted race.
         logging.info("Applying round offset %s.", ROUND_OFFSET)
@@ -637,59 +629,30 @@ def main():
     race_name = active_meta.get('raceName', '')
     logging.info("Targeting Round %s: %s", active_round, race_name)
 
-    # Once official results have been collected for this race, future scheduled
-    # runs exit immediately. Manual dispatch can force a refresh for testing.
     force_update = os.getenv("F1_FORCE_UPDATE", "0").lower() in ("1", "true", "yes")
-    if not force_update and current_json_has_results(SEASON, active_round):
-        logging.info("Official results already collected for this race; nothing to do.")
-        return
+    existing_payload = load_existing_payload(SEASON, active_round)
+    existing_drivers = existing_payload.get("drivers", [])
+    existing_by_number = {
+        num_key(driver.get("no", "")): driver
+        for driver in existing_drivers
+        if driver.get("no")
+    }
+    existing_by_id = {
+        str(driver.get("driverId", "")): driver
+        for driver in existing_drivers
+        if driver.get("driverId")
+    }
 
-    # Poll only between 1h45m and 3h after the scheduled race start.
-    if not force_update:
-        race_start = parse_race_start(active_meta)
-        if race_start is None:
-            logging.warning("Could not parse scheduled race start; skipping this run safely.")
-            return
-        elapsed = now - race_start
-        if elapsed < timedelta(minutes=105):
-            logging.info("Too early to check race results (race started at %s UTC).", race_start.isoformat())
-            return
-        if elapsed > timedelta(minutes=200):
-            logging.info("Three-hour-twenty-minute result polling window has ended; skipping this race.")
-            return
-
-    # 1. Scrape official starting grid
-    if quali_end and now < quali_end:
-        official_grid_map = {}
-    else:
-        official_grid_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'starting-grid')
-
-    # 2. Scrape official race results as a robust fallback/supplement to Jolpica API results
-    official_race_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'race-result')
-    official_race_details = scrape_official_race_details(SEASON, active_meta)
-
-    # The official race-result table is the publication signal. No table means
-    # no published classification yet, so leave current.json untouched.
-    if not official_race_details:
-        logging.info("Official race-result table is not available yet; will retry on the next scheduled run.")
-        return
-
-    # 2a. Scrape fastest-lap times from the official Formula 1 results page.
-    # The scraper returns an empty mapping until the page/table is published.
-    fastest_lap_map = scrape_official_fastest_laps(SEASON, active_meta)
-
-    # 3. Fetch qualifying from Jolpica, with the official F1 page as fallback.
+    # QUALIFYING: run independently of the Sunday race-results window. This
+    # preserves the original behaviour: the five-minute workflow keeps checking
+    # Jolpica and F1.com, and saves qualifying as soon as either publishes it.
     qual_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/qualifying.json')
     qual_races = qual_data.get('RaceTable', {}).get('Races', [])
     qual_results = qual_races[0].get('QualifyingResults', []) if qual_races else []
-
     if qual_results:
         logging.info("Received %d qualifying records from Jolpica.", len(qual_results))
     else:
-        logging.warning(
-            "Jolpica has no qualifying records for round %s; using official F1 page.",
-            active_round,
-        )
+        logging.info("No Jolpica qualifying records published yet for round %s.", active_round)
 
     qual_map = {}
     for q in qual_results:
@@ -703,14 +666,11 @@ def main():
         }
 
     official_qualifying_map = scrape_official_qualifying(SEASON, active_meta)
-
-    # Fill missing qualifying fields by car number when Jolpica is partial.
     api_numbers = {
         num_key(info.get('number', '')): driver_id
         for driver_id, info in qual_map.items()
         if info.get('number')
     }
-
     for number, official in official_qualifying_map.items():
         driver_id = api_numbers.get(number)
         if driver_id:
@@ -719,19 +679,118 @@ def main():
                 if not api_info.get(field):
                     api_info[field] = official.get(field, '')
         else:
-            # Synthetic ID allows official F1 data to populate output when
-            # Jolpica has not published qualifying data for this round.
             driver_id = f"official_{number}"
             qual_map[driver_id] = {
                 field: official.get(field, '')
                 for field in ('qualy', 'q1', 'q2', 'q3', 'number')
             }
 
-    # 4. Fetch race classification. An empty response is normal before the race.
+    # Save qualifying immediately, but never discard race/grid data already
+    # collected for this same round. Existing qualifying values are retained
+    # if a later API response is temporarily incomplete.
+    if qual_map:
+        qual_metadata = {}
+        for item in qual_results:
+            d = item.get('Driver', {})
+            c = item.get('Constructor', {})
+            d_id = d.get('driverId', '')
+            qual_metadata[d_id] = {
+                'driverName': get_std_name(d_id, f"{d.get('givenName', '')} {d.get('familyName', '')}"),
+                'driverId': d_id,
+                'code': d.get('code') or d_id[:3].upper(),
+                'constructorId': c.get('constructorId', ''),
+                'constructorName': get_std_team(c.get('name', '')),
+            }
+        for d_id, q_info in qual_map.items():
+            if d_id.startswith("official_"):
+                official = official_qualifying_map.get(num_key(q_info.get("number", "")), {})
+                qual_metadata[d_id] = {
+                    'driverName': official.get('driverName', d_id),
+                    'driverId': d_id,
+                    'code': official.get('code', ''),
+                    'constructorId': '',
+                    'constructorName': official.get('constructorName', ''),
+                }
+
+        merged = {str(d.get('driverId', '')): dict(d) for d in existing_drivers if d.get('driverId')}
+        for d_id, q_info in qual_map.items():
+            meta = qual_metadata.get(d_id, {})
+            number = q_info.get('number', '')
+            previous = merged.get(d_id) or existing_by_number.get(num_key(number), {})
+            row = dict(previous)
+            row.update({k: v for k, v in meta.items() if v})
+            if number:
+                row['no'] = number
+            for field in ('qualy', 'q1', 'q2', 'q3'):
+                row[field] = q_info.get(field) or row.get(field, '')
+            # Ensure the expected output columns exist even in a qualifying-only snapshot.
+            for field in ('grid', 'pos', 'race', 'laps', 'pts', 'status', 'fastestLap'):
+                row.setdefault(field, '')
+            merged[d_id] = row
+
+        # Keep drivers that were already in the current payload (including any
+        # race-only entries), then add newly discovered qualifying records.
+        qualifying_drivers = list(merged.values())
+        qualifying_drivers.sort(
+            key=lambda x: int(x['pos']) if str(x.get('pos', '')).isdigit()
+            else (int(x['qualy']) if str(x.get('qualy', '')).isdigit() else 99)
+        )
+        qualifying_payload = {
+            'season': SEASON,
+            'round': active_round,
+            'race_name': active_meta.get('raceName'),
+            'date': active_meta.get('date'),
+            'time': active_meta.get('time'),
+            'updated_at_utc': now.isoformat(),
+            'qualifying_results_published': True,
+            'race_results_published': existing_payload.get('race_results_published') is True,
+            'drivers': qualifying_drivers,
+        }
+        write_payload(qualifying_payload)
+        existing_payload = qualifying_payload
+        existing_drivers = qualifying_drivers
+        logging.info("Saved qualifying data to %s (%d drivers).", CURRENT_OUTPUT, len(qualifying_drivers))
+    elif existing_payload:
+        logging.info("No new qualifying records; preserving existing current.json data.")
+
+    # RACE: this gate must come AFTER qualifying so Saturday qualifying is not
+    # blocked by a race-results check or Sunday's race-only polling window.
+    if not force_update and current_json_has_results(SEASON, active_round):
+        logging.info("Official race results already collected for this race; qualifying check complete.")
+        return
+
+    if not force_update:
+        race_start = parse_race_start(active_meta)
+        if race_start is None:
+            logging.warning("Could not parse scheduled race start; skipping race-results check safely.")
+            return
+        elapsed = now - race_start
+        if elapsed < timedelta(minutes=105):
+            logging.info("Too early to check race results (race started at %s UTC).", race_start.isoformat())
+            return
+        if elapsed > timedelta(minutes=200):
+            logging.info("Race-results polling window has ended; skipping this race.")
+            return
+
+    # 1. Scrape official starting grid (which can differ from qualifying after penalties).
+    if quali_end and now < quali_end:
+        official_grid_map = {}
+    else:
+        official_grid_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'starting-grid')
+
+    # 2. Official race-result table is the publication signal and supplements Jolpica.
+    official_race_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'race-result')
+    official_race_details = scrape_official_race_details(SEASON, active_meta)
+    if not official_race_details:
+        logging.info("Official race-result table is not available yet; qualifying data (if available) has been saved. Will retry on the next scheduled run.")
+        return
+
+    fastest_lap_map = scrape_official_fastest_laps(SEASON, active_meta)
+
+    # 3. Fetch race classification from Jolpica; official F1 details are fallback.
     race_data = fetch_json(f'{JOLPICA}/{SEASON}/{active_round}/results.json')
     race_races = race_data.get('RaceTable', {}).get('Races', [])
     race_results = race_races[0].get('Results', []) if race_races else []
-
     if race_results:
         logging.info("Received %d race-classification records from Jolpica.", len(race_results))
     else:
@@ -752,7 +811,6 @@ def main():
     all_driver_ids = set(qual_map.keys()).union(set(race_map.keys()))
     driver_info_source = qual_results if qual_results else race_results
     driver_metadata = {}
-
     for item in driver_info_source:
         d = item.get('Driver', {})
         c = item.get('Constructor', {})
@@ -765,7 +823,6 @@ def main():
             'constructorName': get_std_team(c.get('name', ''))
         }
 
-    # Add driver/team details for qualifying records sourced only from F1.com.
     for d_id, q_info in qual_map.items():
         if d_id.startswith("official_") and d_id not in driver_metadata:
             official = official_qualifying_map.get(num_key(q_info.get("number", "")), {})
@@ -774,7 +831,7 @@ def main():
                 'driverId': d_id,
                 'code': official.get('code', ''),
                 'constructorId': '',
-                'constructorName': official.get('constructorName', ''),
+                'constructorName': official.get('constructorName', '')
             }
 
     combined_drivers = []
@@ -786,38 +843,44 @@ def main():
             'constructorId': '',
             'constructorName': ''
         })
-
         q_info = qual_map.get(d_id, {})
         r_info = race_map.get(d_id, {})
-
         no = r_info.get('number') or q_info.get('number', '')
-        grid_pos = official_grid_map.get(num_key(no), '')
-        
-        # Fallback to scraped race result position if API didn't return race pos yet
-        pos_val = r_info.get('pos', '') or official_race_map.get(num_key(no), '') or official_race_details.get(num_key(no), {}).get('pos', '')
-
+        old = existing_by_id.get(d_id) or existing_by_number.get(num_key(no), {})
+        grid_pos = official_grid_map.get(num_key(no), '') or old.get('grid', '')
+        pos_val = (r_info.get('pos', '') or official_race_map.get(num_key(no), '')
+                   or official_race_details.get(num_key(no), {}).get('pos', ''))
         combined_drivers.append({
-            'driverName': meta['driverName'],
+            'driverName': meta['driverName'] or old.get('driverName', ''),
             'driverId': meta['driverId'],
-            'code': meta['code'],
-            'constructorId': meta['constructorId'],
-            'constructorName': meta['constructorName'],
-            'no': no,
+            'code': meta['code'] or old.get('code', ''),
+            'constructorId': meta['constructorId'] or old.get('constructorId', ''),
+            'constructorName': meta['constructorName'] or old.get('constructorName', ''),
+            'no': no or old.get('no', ''),
             'grid': str(grid_pos),
-            'qualy': q_info.get('qualy', ''),
-            'q1': q_info.get('q1', ''),
-            'q2': q_info.get('q2', ''),
-            'q3': q_info.get('q3', ''),
+            'qualy': q_info.get('qualy') or old.get('qualy', ''),
+            'q1': q_info.get('q1') or old.get('q1', ''),
+            'q2': q_info.get('q2') or old.get('q2', ''),
+            'q3': q_info.get('q3') or old.get('q3', ''),
             'pos': str(pos_val),
             'race': str(pos_val),
             'laps': r_info.get('laps') or official_race_details.get(num_key(no), {}).get('laps', ''),
             'pts': r_info.get('pts') or official_race_details.get(num_key(no), {}).get('pts', ''),
             'status': r_info.get('status') or official_race_details.get(num_key(no), {}).get('status', ''),
-            'fastestLap': fastest_lap_map.get(num_key(no), '')
+            'fastestLap': fastest_lap_map.get(num_key(no), '') or old.get('fastestLap', '')
         })
 
+    # Preserve official qualifying-only entries if Jolpica's race feed omits them.
+    known_numbers = {num_key(d.get('no', '')) for d in combined_drivers if d.get('no')}
+    for old in existing_drivers:
+        number = num_key(old.get('no', ''))
+        if number and number not in known_numbers:
+            combined_drivers.append(old)
+
     combined_drivers.sort(
-        key=lambda x: int(x['pos']) if x['pos'].isdigit() else (int(x['grid']) if x['grid'].isdigit() else 99)
+        key=lambda x: int(x['pos']) if str(x.get('pos', '')).isdigit()
+        else (int(x['grid']) if str(x.get('grid', '')).isdigit()
+              else (int(x['qualy']) if str(x.get('qualy', '')).isdigit() else 99))
     )
 
     payload = {
@@ -827,15 +890,15 @@ def main():
         'date': active_meta.get('date'),
         'time': active_meta.get('time'),
         'updated_at_utc': now.isoformat(),
+        'qualifying_results_published': bool(qual_map) or existing_payload.get('qualifying_results_published') is True,
         'race_results_published': True,
         'drivers': combined_drivers
     }
-
-    CURRENT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    CURRENT_OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    write_payload(payload)
     logging.info('Generated %s (%d drivers, %d with race positions).',
                  CURRENT_OUTPUT, len(combined_drivers),
                  sum(1 for d in combined_drivers if d['pos']))
+
 
 if __name__ == '__main__':
     main()
