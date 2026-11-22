@@ -72,6 +72,14 @@ jobs:
               f.write(f"results_ready={'true' if results_ready else 'false'}\\n")
           PY
 
+      # Generate the Markdown race report only after the official race-result
+      # table has been detected and current.json contains the published results.
+      # Also recover automatically if markdown.md is missing after results were saved.
+      - name: Generate Markdown race report
+        id: markdown
+        if: steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || hashFiles('markdown.md') == '')
+        run: python scripts/markdown.py
+
       - name: Push data to Google Sheets
         if: steps.compare.outputs.changed == 'true' && steps.compare.outputs.results_ready == 'true'
         env:
@@ -79,11 +87,11 @@ jobs:
         run: python scripts/push_to_sheets.py
 
       - name: Commit current.json changes
-        if: steps.compare.outputs.changed == 'true' && steps.compare.outputs.results_ready == 'true'
+        if: steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || steps.markdown.outcome == 'success')
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add current.json
+          git add current.json markdown.md
           git commit -m "Update current session data [skip ci]"
           git push
 
