@@ -63,7 +63,7 @@ Source: [F1.com](https://www.formula1.com/en/results/2026/races/1300/las-vegas/q
 | NC   | 23  | Alexander Albon   | Williams        | 0    | DNS            | 0    |
 | NC   | 41  | Arvid Lindblad    | Racing Bulls    | 19   | DNF            | 0    |
 
-Fastest Lap:  Liam Lawson // 1:35.591 on lap 50
+Fastest Lap:  Liam Lawson 1:35.591 on lap 50  
 DOTD: Max Verstappen
 
 Source: [F1.com](https://www.formula1.com/en/results/2026/races/1300/las-vegas/race-result)
