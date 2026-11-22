@@ -443,7 +443,7 @@ def build_report(current: dict, season_doc: Any) -> str:
     ]
     if fastest_driver and fastest_time:
         lap_text = f" on lap {fastest_lap_no}" if fastest_lap_no else ""
-        lines.append(f"Fastest Lap:  {fastest_driver} // {fastest_time}{lap_text}")
+        lines.append(f"Fastest Lap:  {fastest_driver} {fastest_time}{lap_text}  ")
     # DOTD is not part of current.json or the standard results tables.
     # Leave it out unless a source is explicitly available in the season data.
     dotd = scrape_dotd(race_name)
