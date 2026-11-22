@@ -4,7 +4,7 @@
   "race_name": "Las Vegas Grand Prix",
   "date": "2026-11-22",
   "time": "04:00:00Z",
-  "updated_at_utc": "2026-11-22T08:12:10.825020+00:00",
+  "updated_at_utc": "2026-11-22T08:21:43.217772+00:00",
   "drivers": [
     {
       "driverName": "Max Verstappen",
@@ -20,9 +20,9 @@
       "q3": "1:34.151",
       "pos": "1",
       "race": "1",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "25",
+      "status": "Finished",
       "fastestLap": "00:01:36.450"
     },
     {
@@ -39,9 +39,9 @@
       "q3": "1:34.244",
       "pos": "2",
       "race": "2",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "18",
+      "status": "+0.639s",
       "fastestLap": "00:01:36.182"
     },
     {
@@ -58,9 +58,9 @@
       "q3": "1:34.899",
       "pos": "3",
       "race": "3",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "15",
+      "status": "+1.529s",
       "fastestLap": "00:01:36.334"
     },
     {
@@ -77,9 +77,9 @@
       "q3": "1:33.893",
       "pos": "4",
       "race": "4",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "12",
+      "status": "+2.574s",
       "fastestLap": "00:01:36.235"
     },
     {
@@ -96,9 +96,9 @@
       "q3": "1:34.668",
       "pos": "NC",
       "race": "NC",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "19",
+      "pts": "0",
+      "status": "DNF",
       "fastestLap": "00:01:37.883"
     },
     {
@@ -115,9 +115,9 @@
       "q3": "1:35.105",
       "pos": "5",
       "race": "5",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "10",
+      "status": "+2.927s",
       "fastestLap": "00:01:36.057"
     },
     {
@@ -134,9 +134,9 @@
       "q3": "1:35.314",
       "pos": "6",
       "race": "6",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "8",
+      "status": "+7.955s",
       "fastestLap": "00:01:36.207"
     },
     {
@@ -153,9 +153,9 @@
       "q3": "",
       "pos": "7",
       "race": "7",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "6",
+      "status": "+12.795s",
       "fastestLap": "00:01:36.452"
     },
     {
@@ -172,9 +172,9 @@
       "q3": "",
       "pos": "8",
       "race": "8",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "4",
+      "status": "+12.938s",
       "fastestLap": "00:01:36.716"
     },
     {
@@ -191,9 +191,9 @@
       "q3": "1:34.224",
       "pos": "9",
       "race": "9",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "2",
+      "status": "+13.192s",
       "fastestLap": "00:01:36.331"
     },
     {
@@ -210,9 +210,9 @@
       "q3": "",
       "pos": "10",
       "race": "10",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "1",
+      "status": "+17.554s",
       "fastestLap": "00:01:36.601"
     },
     {
@@ -229,9 +229,9 @@
       "q3": "",
       "pos": "11",
       "race": "11",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "0",
+      "status": "+22.720s",
       "fastestLap": "00:01:37.038"
     },
     {
@@ -248,9 +248,9 @@
       "q3": "",
       "pos": "12",
       "race": "12",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "0",
+      "status": "+28.602s",
       "fastestLap": "00:01:37.087"
     },
     {
@@ -267,29 +267,10 @@
       "q3": "",
       "pos": "13",
       "race": "13",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "0",
+      "status": "+28.843s",
       "fastestLap": "00:01:37.312"
-    },
-    {
-      "driverName": "Isack Hadjar",
-      "driverId": "hadjar",
-      "code": "HAD",
-      "constructorId": "red_bull",
-      "constructorName": "Red Bull",
-      "no": "6",
-      "grid": "4",
-      "qualy": "5",
-      "q1": "1:35.413",
-      "q2": "1:35.064",
-      "q3": "1:34.592",
-      "pos": "14",
-      "race": "14",
-      "laps": "",
-      "pts": "",
-      "status": "",
-      "fastestLap": "00:01:35.944"
     },
     {
       "driverName": "Alexander Albon",
@@ -305,10 +286,29 @@
       "q3": "",
       "pos": "NC",
       "race": "NC",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "0",
+      "pts": "0",
+      "status": "DNS",
       "fastestLap": ""
+    },
+    {
+      "driverName": "Isack Hadjar",
+      "driverId": "hadjar",
+      "code": "HAD",
+      "constructorId": "red_bull",
+      "constructorName": "Red Bull",
+      "no": "6",
+      "grid": "4",
+      "qualy": "5",
+      "q1": "1:35.413",
+      "q2": "1:35.064",
+      "q3": "1:34.592",
+      "pos": "14",
+      "race": "14",
+      "laps": "50",
+      "pts": "0",
+      "status": "+36.488s",
+      "fastestLap": "00:01:35.944"
     },
     {
       "driverName": "Liam Lawson",
@@ -324,9 +324,9 @@
       "q3": "1:35.090",
       "pos": "15",
       "race": "15",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "0",
+      "status": "+36.588s",
       "fastestLap": "00:01:35.591"
     },
     {
@@ -343,9 +343,9 @@
       "q3": "",
       "pos": "16",
       "race": "16",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "0",
+      "status": "+47.814s",
       "fastestLap": "00:01:37.900"
     },
     {
@@ -362,9 +362,9 @@
       "q3": "",
       "pos": "NC",
       "race": "NC",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "17",
+      "pts": "0",
+      "status": "DNF",
       "fastestLap": "00:01:39.296"
     },
     {
@@ -381,9 +381,9 @@
       "q3": "",
       "pos": "17",
       "race": "17",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "0",
+      "status": "+68.353s",
       "fastestLap": "00:01:38.805"
     },
     {
@@ -400,9 +400,9 @@
       "q3": "",
       "pos": "18",
       "race": "18",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "50",
+      "pts": "0",
+      "status": "+71.673s",
       "fastestLap": "00:01:38.443"
     },
     {
@@ -419,9 +419,9 @@
       "q3": "",
       "pos": "19",
       "race": "19",
-      "laps": "",
-      "pts": "",
-      "status": "",
+      "laps": "49",
+      "pts": "0",
+      "status": "DNF",
       "fastestLap": "00:01:38.560"
     }
   ]
