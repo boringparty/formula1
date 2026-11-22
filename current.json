@@ -4,7 +4,7 @@
   "race_name": "Las Vegas Grand Prix",
   "date": "2026-11-22",
   "time": "04:00:00Z",
-  "updated_at_utc": "2026-11-22T05:57:44.566397+00:00",
+  "updated_at_utc": "2026-11-22T07:59:12.106637+00:00",
   "drivers": [
     {
       "driverName": "Max Verstappen",
@@ -83,25 +83,6 @@
       "fastestLap": "00:01:36.235"
     },
     {
-      "driverName": "Arvid Lindblad",
-      "driverId": "arvid_lindblad",
-      "code": "LIN",
-      "constructorId": "rb",
-      "constructorName": "RB F1 Team",
-      "no": "41",
-      "grid": "5",
-      "qualy": "6",
-      "q1": "1:35.456",
-      "q2": "1:34.963",
-      "q3": "1:34.668",
-      "pos": "NC",
-      "race": "NC",
-      "laps": "",
-      "pts": "",
-      "status": "",
-      "fastestLap": "00:01:37.883"
-    },
-    {
       "driverName": "Pierre Gasly",
       "driverId": "gasly",
       "code": "GAS",
@@ -119,6 +100,25 @@
       "pts": "",
       "status": "",
       "fastestLap": "00:01:36.057"
+    },
+    {
+      "driverName": "Arvid Lindblad",
+      "driverId": "arvid_lindblad",
+      "code": "LIN",
+      "constructorId": "rb",
+      "constructorName": "RB F1 Team",
+      "no": "41",
+      "grid": "5",
+      "qualy": "6",
+      "q1": "1:35.456",
+      "q2": "1:34.963",
+      "q3": "1:34.668",
+      "pos": "NC",
+      "race": "NC",
+      "laps": "",
+      "pts": "",
+      "status": "",
+      "fastestLap": "00:01:37.883"
     },
     {
       "driverName": "Franco Colapinto",
@@ -273,25 +273,6 @@
       "fastestLap": "00:01:37.312"
     },
     {
-      "driverName": "Alexander Albon",
-      "driverId": "albon",
-      "code": "ALB",
-      "constructorId": "williams",
-      "constructorName": "Williams",
-      "no": "23",
-      "grid": "14",
-      "qualy": "16",
-      "q1": "1:35.856",
-      "q2": "1:36.125",
-      "q3": "",
-      "pos": "NC",
-      "race": "NC",
-      "laps": "",
-      "pts": "",
-      "status": "",
-      "fastestLap": ""
-    },
-    {
       "driverName": "Isack Hadjar",
       "driverId": "hadjar",
       "code": "HAD",
@@ -309,6 +290,25 @@
       "pts": "",
       "status": "",
       "fastestLap": "00:01:35.944"
+    },
+    {
+      "driverName": "Alexander Albon",
+      "driverId": "albon",
+      "code": "ALB",
+      "constructorId": "williams",
+      "constructorName": "Williams",
+      "no": "23",
+      "grid": "14",
+      "qualy": "16",
+      "q1": "1:35.856",
+      "q2": "1:36.125",
+      "q3": "",
+      "pos": "NC",
+      "race": "NC",
+      "laps": "",
+      "pts": "",
+      "status": "",
+      "fastestLap": ""
     },
     {
       "driverName": "Liam Lawson",
@@ -330,25 +330,6 @@
       "fastestLap": "00:01:35.591"
     },
     {
-      "driverName": "Sergio Perez",
-      "driverId": "perez",
-      "code": "PER",
-      "constructorId": "cadillac",
-      "constructorName": "Cadillac F1 Team",
-      "no": "11",
-      "grid": "16",
-      "qualy": "18",
-      "q1": "1:37.383",
-      "q2": "",
-      "q3": "",
-      "pos": "NC",
-      "race": "NC",
-      "laps": "",
-      "pts": "",
-      "status": "",
-      "fastestLap": "00:01:39.296"
-    },
-    {
       "driverName": "Rafael Camara",
       "driverId": "rafael_camara",
       "code": "CAM",
@@ -366,6 +347,25 @@
       "pts": "",
       "status": "",
       "fastestLap": "00:01:37.900"
+    },
+    {
+      "driverName": "Sergio Perez",
+      "driverId": "perez",
+      "code": "PER",
+      "constructorId": "cadillac",
+      "constructorName": "Cadillac F1 Team",
+      "no": "11",
+      "grid": "16",
+      "qualy": "18",
+      "q1": "1:37.383",
+      "q2": "",
+      "q3": "",
+      "pos": "NC",
+      "race": "NC",
+      "laps": "",
+      "pts": "",
+      "status": "",
+      "fastestLap": "00:01:39.296"
     },
     {
       "driverName": "Lance Stroll",
