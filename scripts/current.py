@@ -310,13 +310,14 @@ def scrape_official_race_details(season: int, meta: dict) -> dict[str, dict]:
     def column(*names):
         return next((i for i, header in enumerate(headers) if header in names), None)
 
+    pos_idx = column("pos", "position")
     no_idx = column("no", "number", "num")
     laps_idx = column("laps")
     pts_idx = column("pts", "points")
     time_idx = column("timeretired", "time", "retired")
 
-    if no_idx is None:
-        logging.warning("Race-results table has no car-number column at %s: %s", url, headers)
+    if no_idx is None or pos_idx is None:
+        logging.warning("Race-results table is missing position or car-number columns at %s: %s", url, headers)
         return {}
 
     details = {}
@@ -327,6 +328,10 @@ def scrape_official_race_details(season: int, meta: dict) -> dict[str, dict]:
 
         number = clean(cells[no_idx])
         if not number.isdigit():
+            continue
+
+        position = clean(cells[pos_idx]) if len(cells) > pos_idx else ""
+        if not position:
             continue
 
         laps = clean(cells[laps_idx]) if laps_idx is not None and len(cells) > laps_idx else ""
@@ -346,6 +351,7 @@ def scrape_official_race_details(season: int, meta: dict) -> dict[str, dict]:
             status = time_retired
 
         details[num_key(number)] = {
+            "pos": position,
             "laps": laps,
             "pts": points,
             "status": status,
@@ -566,6 +572,34 @@ def pick_active_race(races: list[dict], now: datetime) -> tuple[dict, datetime |
             continue
     return races[-1], None
 
+def parse_race_start(meta: dict) -> datetime | None:
+    """Return the scheduled race start as an aware UTC datetime."""
+    race_date = clean(meta.get("date"))
+    race_time = clean(meta.get("time"))
+    if not race_date or not race_time:
+        return None
+    try:
+        value = datetime.fromisoformat(f"{race_date}T{race_time.replace('Z', '+00:00')}")
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def current_json_has_results(season: int, round_no: str) -> bool:
+    """Prevent repeated processing after official results have been collected."""
+    try:
+        existing = json.loads(CURRENT_OUTPUT.read_text(encoding="utf-8"))
+        return (
+            int(existing.get("season", -1)) == season
+            and str(existing.get("round", "")) == str(round_no)
+            and existing.get("race_results_published") is True
+        )
+    except (OSError, ValueError, TypeError):
+        return False
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     now = datetime.now(timezone.utc)
@@ -603,6 +637,27 @@ def main():
     race_name = active_meta.get('raceName', '')
     logging.info("Targeting Round %s: %s", active_round, race_name)
 
+    # Once official results have been collected for this race, future scheduled
+    # runs exit immediately. Manual dispatch can force a refresh for testing.
+    force_update = os.getenv("F1_FORCE_UPDATE", "0").lower() in ("1", "true", "yes")
+    if not force_update and current_json_has_results(SEASON, active_round):
+        logging.info("Official results already collected for this race; nothing to do.")
+        return
+
+    # Poll only between 1h45m and 3h20m after the scheduled race start.
+    if not force_update:
+        race_start = parse_race_start(active_meta)
+        if race_start is None:
+            logging.warning("Could not parse scheduled race start; skipping this run safely.")
+            return
+        elapsed = now - race_start
+        if elapsed < timedelta(minutes=105):
+            logging.info("Too early to check race results (race started at %s UTC).", race_start.isoformat())
+            return
+        if elapsed > timedelta(hours=3, minutes=20):
+            logging.info("Three-hour-twenty-minute result polling window has ended; skipping this race.")
+            return
+
     # 1. Scrape official starting grid
     if quali_end and now < quali_end:
         official_grid_map = {}
@@ -612,6 +667,12 @@ def main():
     # 2. Scrape official race results as a robust fallback/supplement to Jolpica API results
     official_race_map = scrape_official_f1_table(SEASON, int(active_round), active_meta, 'race-result')
     official_race_details = scrape_official_race_details(SEASON, active_meta)
+
+    # The official race-result table is the publication signal. No table means
+    # no published classification yet, so leave current.json untouched.
+    if not official_race_details:
+        logging.info("Official race-result table is not available yet; will retry on the next scheduled run.")
+        return
 
     # 2a. Scrape fastest-lap times from the official Formula 1 results page.
     # The scraper returns an empty mapping until the page/table is published.
@@ -733,7 +794,7 @@ def main():
         grid_pos = official_grid_map.get(num_key(no), '')
         
         # Fallback to scraped race result position if API didn't return race pos yet
-        pos_val = r_info.get('pos', '') or official_race_map.get(num_key(no), '')
+        pos_val = r_info.get('pos', '') or official_race_map.get(num_key(no), '') or official_race_details.get(num_key(no), {}).get('pos', '')
 
         combined_drivers.append({
             'driverName': meta['driverName'],
@@ -766,6 +827,7 @@ def main():
         'date': active_meta.get('date'),
         'time': active_meta.get('time'),
         'updated_at_utc': now.isoformat(),
+        'race_results_published': True,
         'drivers': combined_drivers
     }
 
