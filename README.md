@@ -12,7 +12,7 @@ An automated, high-reliability Formula 1 data ingestion and CDN assets pipeline 
 | **`drivers.json`** | Driver rosters, team affiliations, headshot URLs, and high-res asset transformations hosted on the official F1 CDN. | Weekly | F1 Media CDN (`DRIVER_ASSET_MAP`) |
 | **`current.json`** | Operational live state for the active or next upcoming race weekend. Combines qualifying times, starting grid positions, race classifications, and driver metrics into unified per-driver records. | Every 15 minutes | Jolpica / Ergast API |
 | **`season.json`** | Cumulative historical archive storing completed race weekend snapshots indexed by round number. | Weekly (Mondays) | Archived snapshots from `current.json` |
-| **`markdown.md`** | Markdown of the results for forums | Weekly | 
+| **`markdown.md`** | Markdown of the results for forums | Weekly | `current.json`
 
 ---
 
