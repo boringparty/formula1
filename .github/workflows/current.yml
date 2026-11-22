@@ -10,6 +10,11 @@ on:
         required: false
         default: '0'
         type: string
+      force_markdown:
+        description: 'Regenerate markdown.md from the existing current.json without rerunning the race scraper'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -43,6 +48,7 @@ jobs:
           fi
 
       - name: Build current session data
+        if: inputs.force_markdown != true
         env:
           F1_ROUND_OFFSET: ${{ github.event.inputs.round_offset || '0' }}
           F1_FORCE_UPDATE: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
@@ -68,8 +74,8 @@ jobs:
           print(f"Data changed: {changed}")
           print(f"Official race results ready: {results_ready}")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"changed={'true' if changed else 'false'}\\n")
-              f.write(f"results_ready={'true' if results_ready else 'false'}\\n")
+              f.write(f"changed={'true' if changed else 'false'}\n")
+              f.write(f"results_ready={'true' if results_ready else 'false'}\n")
           PY
 
       # Generate the Markdown race report only after the official race-result
@@ -77,7 +83,7 @@ jobs:
       # Also recover automatically if markdown.md is missing after results were saved.
       - name: Generate Markdown race report
         id: markdown
-        if: steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || hashFiles('markdown.md') == '')
+        if: inputs.force_markdown == true || (steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || hashFiles('markdown.md') == ''))
         run: python scripts/markdown.py
 
       - name: Push data to Google Sheets
@@ -87,11 +93,15 @@ jobs:
         run: python scripts/push_to_sheets.py
 
       - name: Commit current.json changes
-        if: steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || steps.markdown.outcome == 'success')
+        if: (steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || steps.markdown.outcome == 'success')) || inputs.force_markdown == true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add current.json markdown.md
+          if git diff --cached --quiet; then
+            echo "No file changes to commit."
+            exit 0
+          fi
           git commit -m "Update current session data [skip ci]"
           git push
 
@@ -106,11 +116,11 @@ jobs:
             exit 0
           fi
 
-          curl -sS --fail \\
-            --form-string "token=$PUSHOVER_API_TOKEN" \\
-            --form-string "user=$PUSHOVER_USER_KEY" \\
-            --form-string "title=F1 Current Session" \\
-            --form-string "message=Official race results posted and current.json updated." \\
-            --form-string "priority=1" \\
-            https://api.pushover.net/1/messages.json \\
+          curl -sS --fail \
+            --form-string "token=$PUSHOVER_API_TOKEN" \
+            --form-string "user=$PUSHOVER_USER_KEY" \
+            --form-string "title=F1 Current Session" \
+            --form-string "message=Official race results posted and current.json updated." \
+            --form-string "priority=1" \
+            https://api.pushover.net/1/messages.json \
             || echo "Pushover notification failed. Continuing."
