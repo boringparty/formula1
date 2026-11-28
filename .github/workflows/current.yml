@@ -7,19 +7,19 @@ on:
   workflow_dispatch:
     inputs:
       round_offset:
-        description: 'Race offset for testing (0 = normal, -1 = previous, +1 = next)'
+        description: "Race offset for testing (0 = normal, -1 = previous, +1 = next)"
         required: false
-        default: '0'
+        default: "0"
         type: string
 
       force_markdown:
-        description: 'Regenerate markdown.md from the existing current.json without rerunning the race scraper'
+        description: "Regenerate markdown.md from existing current.json without scraping"
         required: false
         default: false
         type: boolean
 
       force_sheets:
-        description: 'Push existing current.json to Google Sheets even if the data has not changed'
+        description: "Push existing current.json to Google Sheets even if unchanged"
         required: false
         default: false
         type: boolean
@@ -77,14 +77,29 @@ jobs:
           new.pop("updated_at_utc", None)
 
           changed = old != new
+          drivers = new.get("drivers", [])
+
+          grid_count = sum(
+              1
+              for driver in drivers
+              if any(
+                  str(driver.get(field) or "").strip().isdigit()
+                  and int(str(driver.get(field)).strip()) > 0
+                  for field in ("grid", "qualy")
+              )
+          )
+
+          grid_ready = grid_count >= 10
           results_ready = new.get("race_results_published") is True
 
           print(f"Data changed: {changed}")
-          print(f"Official race results ready: {results_ready}")
+          print(f"Grid ready: {grid_ready} ({grid_count} drivers)")
+          print(f"Race results ready: {results_ready}")
 
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"changed={'true' if changed else 'false'}\n")
-              f.write(f"results_ready={'true' if results_ready else 'false'}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"changed={'true' if changed else 'false'}\n")
+              output.write(f"grid_ready={'true' if grid_ready else 'false'}\n")
+              output.write(f"results_ready={'true' if results_ready else 'false'}\n")
           PY
 
       - name: Generate Markdown race report
@@ -93,20 +108,23 @@ jobs:
         run: python scripts/markdown.py
 
       - name: Push data to Google Sheets
-        if: steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || inputs.force_sheets == true)
+        if: (steps.compare.outputs.grid_ready == 'true' || steps.compare.outputs.results_ready == 'true') && (steps.compare.outputs.changed == 'true' || inputs.force_sheets == true)
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
           PUSHOVER_API_TOKEN: ${{ secrets.PUSHOVER_API_TOKEN }}
         run: python scripts/push_to_sheets.py
 
-      - name: Commit current.json changes
-        if: (steps.compare.outputs.results_ready == 'true' && (steps.compare.outputs.changed == 'true' || steps.markdown.outcome == 'success')) || inputs.force_markdown == true
+      - name: Commit current.json and Markdown changes
+        if: steps.compare.outputs.changed == 'true' || inputs.force_markdown == true || steps.markdown.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add current.json markdown.md
+          git add current.json
+          if [ -f markdown.md ]; then
+            git add markdown.md
+          fi
 
           if git diff --cached --quiet; then
             echo "No file changes to commit."
@@ -116,7 +134,7 @@ jobs:
           git commit -m "Update current session data [skip ci]"
           git push
 
-      - name: Notify Pushover - Data Updated
+      - name: Notify Pushover - Race Results Updated
         if: success() && steps.compare.outputs.changed == 'true' && steps.compare.outputs.results_ready == 'true'
         env:
           PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
