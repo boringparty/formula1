@@ -237,19 +237,30 @@ def update_if_changed(worksheet, range_name, rows):
 
     return True
 
-
 def race_sort_key(driver):
-    """Classified positions first; unclassified drivers in qualifying order."""
+    """Sort by race position, finish status, laps, then qualifying."""
 
     position = valid_position(driver.get("pos"))
     qualifying = valid_position(driver.get("qualy"))
+    laps = numeric_value(driver.get("laps"))
 
-    return (
-        0 if position is not None else 1,
-        position if position is not None else 999,
-        qualifying if qualifying is not None else 999,
+    status = str(driver.get("status") or "").strip().lower()
+
+    # F1 classifications may report "Finished" or "+1 Lap", "+2 Laps", etc.
+    finished = (
+        status == "finished"
+        or (
+            status.startswith("+")
+            and "lap" in status
+        )
     )
 
+    return (
+        position if position is not None else 999,
+        0 if finished else 1,
+        -laps if isinstance(laps, (int, float)) else 0,
+        qualifying if qualifying is not None else 999,
+    )
 
 def main():
     logging.basicConfig(
