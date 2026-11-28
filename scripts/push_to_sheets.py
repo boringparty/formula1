@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """Push current.json into the F1 Pool Google Sheet."""
 
@@ -17,20 +16,20 @@ from google.oauth2.service_account import Credentials
 
 SHEET_ID = "1qlgU6Nbcj9gSmnI8RgFmrm3lqtK03kanHaxwGJrcIII"
 SHEET_TAB = "results"
+
 JSON_FILE = Path(__file__).resolve().parent.parent / "current.json"
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-MIN_RACE_ROWS = 10
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+]
 
+MIN_RACE_ROWS = 10
 PUSHOVER_URL = "https://api.pushover.net/1/messages.json"
 
 
-# --------------------------------------------------
-# PUSHOVER
-# --------------------------------------------------
-
 def notify(message, title="F1 Pool"):
     """Send a Pushover notification. Missing credentials are non-fatal."""
+
     user_key = os.environ.get("PUSHOVER_USER_KEY", "").strip()
     api_token = os.environ.get("PUSHOVER_API_TOKEN", "").strip()
 
@@ -58,33 +57,49 @@ def notify(message, title="F1 Pool"):
         logging.warning("Pushover notification failed: %s", error)
 
 
-# --------------------------------------------------
-# VALUE CONVERSION
-# --------------------------------------------------
-
 def numeric_value(value):
     """Convert numeric fields to actual numbers."""
+
     if value is None or str(value).strip() == "":
         return ""
 
     try:
         number = float(value)
+        return int(number) if number.is_integer() else number
+
     except (TypeError, ValueError):
         return ""
 
-    return int(number) if number.is_integer() else number
+
+def valid_position(value):
+    """Return a positive integer position, or None."""
+
+    number = numeric_value(value)
+
+    if isinstance(number, int) and number > 0:
+        return number
+
+    return None
+
+
+def race_position(value):
+    """Preserve numeric positions and non-numeric classifications such as NC."""
+
+    position = valid_position(value)
+
+    if position is not None:
+        return position
+
+    return str(value or "").strip()
 
 
 def duration_value(value):
-    """
-    Convert F1 lap times into Google Sheets duration values.
+    """Convert F1 lap times into Google Sheets duration values.
 
-    Supports:
-        1:19.328
-        00:01:19.328
-
+    Supports 1:19.328 and 00:01:19.328.
     Google Sheets stores durations as fractions of a day.
     """
+
     if value is None or str(value).strip() == "":
         return ""
 
@@ -95,10 +110,8 @@ def duration_value(value):
         if len(parts) == 2:
             minutes, seconds = parts
             hours = 0
-
         elif len(parts) == 3:
             hours, minutes, seconds = parts
-
         else:
             raise ValueError("Unexpected time format")
 
@@ -113,7 +126,11 @@ def duration_value(value):
         minutes = int(minutes)
         whole_seconds = int(whole_seconds)
 
-        if hours < 0 or not 0 <= minutes < 60 or not 0 <= whole_seconds < 60:
+        if (
+            hours < 0
+            or not 0 <= minutes < 60
+            or not 0 <= whole_seconds < 60
+        ):
             raise ValueError("Time component out of range")
 
         total_seconds = (
@@ -133,23 +150,9 @@ def duration_value(value):
         return ""
 
 
-def valid_position(value):
-    """Return an integer position, or None if unavailable."""
-    if value is None or str(value).strip() == "":
-        return None
+def load_payload():
+    """Load and validate current.json."""
 
-    try:
-        position = int(value)
-        return position if position > 0 else None
-    except (TypeError, ValueError):
-        return None
-
-
-# --------------------------------------------------
-# GOOGLE SHEETS
-# --------------------------------------------------
-
-def load_payload() -> dict:
     if not JSON_FILE.is_file():
         raise FileNotFoundError(f"Missing JSON file: {JSON_FILE}")
 
@@ -163,10 +166,15 @@ def load_payload() -> dict:
             "current.json has no driver records; refusing to update the sheet."
         )
 
+    if not all(isinstance(driver, dict) for driver in drivers):
+        raise ValueError("current.json contains invalid driver records.")
+
     return payload
 
 
 def get_worksheet():
+    """Authenticate and open the results worksheet."""
+
     raw_credentials = os.environ.get(
         "GOOGLE_SERVICE_ACCOUNT_JSON", ""
     ).strip()
@@ -189,9 +197,13 @@ def get_worksheet():
 
 
 def normalize_rows(rows):
-    """Remove trailing empty rows and normalize values for comparison."""
+    """Normalize values for comparison and remove trailing empty rows."""
+
     normalized = [
-        [str(value).strip() if value is not None else "" for value in row]
+        [
+            str(value).strip() if value is not None else ""
+            for value in row
+        ]
         for row in rows
     ]
 
@@ -203,6 +215,7 @@ def normalize_rows(rows):
 
 def update_if_changed(worksheet, range_name, rows):
     """Only clear and rewrite a range when its contents actually change."""
+
     existing = worksheet.get_values(
         range_name,
         value_render_option="UNFORMATTED_VALUE",
@@ -225,9 +238,18 @@ def update_if_changed(worksheet, range_name, rows):
     return True
 
 
-# --------------------------------------------------
-# MAIN PUSH
-# --------------------------------------------------
+def race_sort_key(driver):
+    """Classified positions first; unclassified drivers in qualifying order."""
+
+    position = valid_position(driver.get("pos"))
+    qualifying = valid_position(driver.get("qualy"))
+
+    return (
+        0 if position is not None else 1,
+        position if position is not None else 999,
+        qualifying if qualifying is not None else 999,
+    )
+
 
 def main():
     logging.basicConfig(
@@ -239,25 +261,31 @@ def main():
     drivers = payload["drivers"]
     worksheet = get_worksheet()
 
-    # GRID: official starting grid takes priority over qualifying order.
+    logging.info(
+        "Processing %s, round %s (%d drivers).",
+        payload.get("race_name", "Unknown race"),
+        payload.get("round", "?"),
+        len(drivers),
+    )
 
+    # GRID: official starting grid takes priority over qualifying order.
     official_grid = [
-        (d, valid_position(d.get("grid")))
-        for d in drivers
+        (driver, valid_position(driver.get("grid")))
+        for driver in drivers
     ]
     official_grid = [
-        (d, position)
-        for d, position in official_grid
+        (driver, position)
+        for driver, position in official_grid
         if position is not None
     ]
 
     qualifying_grid = [
-        (d, valid_position(d.get("qualy")))
-        for d in drivers
+        (driver, valid_position(driver.get("qualy")))
+        for driver in drivers
     ]
     qualifying_grid = [
-        (d, position)
-        for d, position in qualifying_grid
+        (driver, position)
+        for driver, position in qualifying_grid
         if position is not None
     ]
 
@@ -307,82 +335,86 @@ def main():
 
     else:
         logging.info(
-            "No official grid or qualifying positions found; B:C left unchanged."
+            "No official grid or qualifying positions found; "
+            "B:C left unchanged."
         )
 
-    # RACE RESULTS: require a substantial classification before replacing old data.
-
+    # RACE RESULTS: do not overwrite existing results until the official
+    # classification is published and enough records are available.
     race_data_count = sum(
         1
-        for d in drivers
+        for driver in drivers
         if any(
-            str(d.get(field, "")).strip()
+            driver.get(field) is not None
+            and str(driver.get(field)).strip()
             for field in ("race", "laps", "status")
         )
     )
 
-    if race_data_count >= MIN_RACE_ROWS:
-        race_rows = [
-            [
-                d.get("driverName", ""),
-                d.get("constructorName", ""),
-                numeric_value(d.get("grid", "")),
-                numeric_value(d.get("race", "")),
-                d.get("status", ""),
-                numeric_value(d.get("laps", "")),
-                duration_value(d.get("fastestLap", "")),
-            ]
-            for d in drivers
-        ]
+    results_ready = payload.get("race_results_published") is True
 
-        race_changed = update_if_changed(
-            worksheet,
-            "E2:K",
-            race_rows,
-        )
-
-        if race_changed:
-            worksheet.format(
-                "G2:H",
-                {"numberFormat": {"type": "NUMBER", "pattern": "0"}},
-            )
-
-            worksheet.format(
-                "J2:J",
-                {"numberFormat": {"type": "NUMBER", "pattern": "0"}},
-            )
-
-            worksheet.format(
-                "K2:K",
-                {
-                    "numberFormat": {
-                        "type": "TIME",
-                        "pattern": "[h]:mm:ss.000",
-                    }
-                },
-            )
-
-            logging.info(
-                "Updated race results (%d drivers; %d with race data).",
-                len(race_rows),
-                race_data_count,
-            )
-
-            notify(
-                f"Race results pushed to the spreadsheet.\n"
-                f"{race_data_count} drivers with race data.",
-                "F1 Pool — Race Results Updated",
-            )
-        else:
-            logging.info("Race results unchanged; no update needed.")
-
-    else:
+    if not results_ready or race_data_count < MIN_RACE_ROWS:
         logging.info(
-            "Race classification not ready (%d/%d records); "
-            "E:K left unchanged.",
+            "Race classification not ready "
+            "(published=%s, %d/%d records); E:K left unchanged.",
+            results_ready,
             race_data_count,
             MIN_RACE_ROWS,
         )
+        return
+
+    sorted_drivers = sorted(drivers, key=race_sort_key)
+
+    # E:K — DRIVER, CONSTRUCTOR, GRID, POSITION, STATUS, LAPS, FASTEST LAP
+    race_rows = [
+        [
+            driver.get("driverName", ""),
+            driver.get("constructorName", ""),
+            numeric_value(driver.get("grid")),
+            race_position(driver.get("race")),
+            driver.get("status", "") or "",
+            numeric_value(driver.get("laps")),
+            duration_value(driver.get("fastestLap")),
+        ]
+        for driver in sorted_drivers
+    ]
+
+    race_changed = update_if_changed(
+        worksheet,
+        "E2:K",
+        race_rows,
+    )
+
+    if race_changed:
+        worksheet.format(
+            "G2:H",
+            {"numberFormat": {"type": "NUMBER", "pattern": "0"}},
+        )
+
+        worksheet.format(
+            "J2:J",
+            {"numberFormat": {"type": "NUMBER", "pattern": "0"}},
+        )
+
+        worksheet.format(
+            "K2:K",
+            {"numberFormat": {"type": "TIME", "pattern": "[h]:mm:ss.000"}},
+        )
+
+        logging.info(
+            "Updated race results (%d drivers; %d with race data).",
+            len(race_rows),
+            race_data_count,
+        )
+
+        notify(
+            f"Race results pushed to the spreadsheet.\n"
+            f"{race_data_count} drivers with race data.",
+            "F1 Pool — Race Results Updated",
+        )
+
+    else:
+        logging.info("Race results unchanged; no update needed.")
 
 
 if __name__ == "__main__":
